@@ -1,0 +1,51 @@
+<%- include('partials/header') %>
+<% const gq = g ? '&gender=' + g : ''; %>
+<div class="wrap">
+  <section class="home-section">
+    <div class="section__head">
+      <h2 class="section__title">Бренды</h2>
+      <a class="link" href="/stores">Все <%= storesTotal %></a>
+    </div>
+    <div class="brands-grid">
+      <% popularStores.forEach((s) => { %>
+        <a class="store-card" href="/stores/<%= s.slug %>">
+          <%- include('partials/store-icon', { s }) %>
+          <span class="store-card__body"><span class="store-card__name"><%= s.name %></span><span class="store-card__cats"><%= (s.categories || '').split(',').map((c) => CATEGORIES[c]).filter(Boolean).slice(0, 2).join(', ') %></span></span>
+        </a>
+      <% }) %>
+    </div>
+  </section>
+
+  <% if (fresh.length) { %>
+  <section class="home-section">
+    <div class="section__head">
+      <h2 class="section__title">Новинки</h2>
+      <a class="link" href="/catalog?sort=new<%= gq %>">Смотреть все</a>
+    </div>
+    <div class="rail" data-rail>
+      <button class="rail__btn rail__btn--prev" type="button" data-rail-prev aria-label="Назад" hidden><%- icon('chevronLeft') %></button>
+      <div class="rail__track" data-rail-track>
+        <% fresh.forEach((p) => { %><%- include('partials/product-card', { p }) %><% }) %>
+      </div>
+      <button class="rail__btn rail__btn--next" type="button" data-rail-next aria-label="Вперёд" hidden><%- icon('chevronRight') %></button>
+    </div>
+  </section>
+  <% } %>
+
+  <% if (featured.length) { %>
+  <section class="home-section">
+    <div class="section__head">
+      <h2 class="section__title">Популярное</h2>
+      <a class="link" href="/catalog?popular=1<%= gq %>">Смотреть все</a>
+    </div>
+    <div class="rail" data-rail>
+      <button class="rail__btn rail__btn--prev" type="button" data-rail-prev aria-label="Назад" hidden><%- icon('chevronLeft') %></button>
+      <div class="rail__track" data-rail-track>
+        <% featured.forEach((p) => { %><%- include('partials/product-card', { p }) %><% }) %>
+      </div>
+      <button class="rail__btn rail__btn--next" type="button" data-rail-next aria-label="Вперёд" hidden><%- icon('chevronRight') %></button>
+    </div>
+  </section>
+  <% } %>
+</div>
+<%- include('partials/footer') %>

@@ -1,0 +1,36 @@
+<%- include('_header') %>
+<div class="admin__head">
+  <h1>Магазины <span class="muted" style="font-weight:400;font-size:18px"><%= list.length %></span></h1>
+  <div style="display:flex;gap:8px">
+    <form method="get" action="/admin/stores"><% if (sort) { %><input type="hidden" name="sort" value="<%= sort %>"><% } %><input class="input" name="q" value="<%= q %>" placeholder="Найти магазин" style="min-height:38px;width:220px"></form>
+    <a class="btn btn--sm" href="/admin/stores/new">Добавить магазин</a>
+  </div>
+</div>
+<p class="muted" style="margin:-10px 0 12px;max-width:72ch">«Префикс PT» — часть адреса португальской версии сайта. По нему сайт проверяет, что покупатель вставил ссылку именно с португальского сайта. Иконки берутся автоматически по домену, можно загрузить свой логотип.</p>
+<p style="margin:0 0 20px;max-width:72ch">«Цена по ссылке» — получается ли у сайта взять цену со страницы товара автоматически. Статистика копится, когда покупатели вставляют ссылки.
+  Сейчас работает у <b><%= parseStats.works || 0 %></b>, не работает у <b><%= parseStats.fails || 0 %></b>, остальные ещё не проверялись.
+  <a class="link" href="/admin/stores?sort=<%= sort === 'parse' ? '' : 'parse' %><%= q ? '&q=' + encodeURIComponent(q) : '' %>"><%= sort === 'parse' ? 'Сортировать по названию' : 'Сначала проверенные' %></a></p>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th></th><th>Магазин</th><th>Ссылка</th><th>Префикс PT</th><th>Регион</th><th>Цена по ссылке</th><th>Заказов</th><th>На сайте</th></tr></thead>
+    <tbody>
+      <% list.forEach((s) => { %>
+        <tr data-href="/admin/stores/<%= s.id %>/edit">
+          <td><%- include('../partials/store-icon', { s, size: 'sm' }) %></td>
+          <td><a href="/admin/stores/<%= s.id %>/edit"><b><%= s.name %></b></a><div class="muted small"><%= s.categories.split(',').map((c) => CATEGORIES[c]).filter(Boolean).join(', ') %><%= s.subcategories ? ' · ' + s.subcategories.split(',').map((c) => BEAUTY_SUBCATS[c]).filter(Boolean).join(', ') : '' %></div></td>
+          <td class="small" style="max-width:280px;word-break:break-all"><a class="link" href="<%= s.url %>" target="_blank" rel="noopener"><%= s.url.replace(/^https?:\/\//, '') %></a></td>
+          <td class="small"><code><%= s.link_prefix %></code></td>
+          <td><span class="region region--<%= s.region %>"><%= s.region %></span></td>
+          <td class="small nowrap">
+            <% if (!s.parse_ok && !s.parse_fail) { %><span class="muted">не проверялась</span>
+            <% } else if (s.parse_ok) { %><span class="status status--ok">работает</span><div class="muted" style="margin-top:4px"><%= s.parse_ok %> из <%= s.parse_ok + s.parse_fail %><%= s.parse_last ? ' · ' + fmt.parseLabel(s.parse_last) : '' %></div>
+            <% } else { %><span class="status status--muted">не работает</span><div class="muted" style="margin-top:4px"><%= fmt.parseLabel(s.parse_last) %></div><% } %>
+          </td>
+          <td><%= s.ordered %></td>
+          <td><%= s.is_active ? (s.is_popular ? 'Популярный' : 'Да') : 'Скрыт' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<%- include('_footer') %>

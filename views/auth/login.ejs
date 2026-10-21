@@ -1,0 +1,22 @@
+<%- include('../partials/header') %>
+<div class="wrap page">
+  <div class="auth">
+    <h1 class="page-title">Вход</h1>
+    <p class="page-sub">Чтобы оформлять заказы и следить за их статусом.</p>
+    <form class="panel" method="post" action="/login" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <% if (error) { %><p class="field__error" style="margin:0 0 16px"><%= error %></p><% } %>
+      <div class="field">
+        <label for="email">Почта</label>
+        <input class="input" id="email" name="email" type="email" value="<%= values.email || '' %>" autocomplete="email" required autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Пароль</label>
+        <input class="input" id="password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="btn btn--block" type="submit">Войти</button>
+    </form>
+    <p class="auth__switch">Нет аккаунта? <a class="link" href="/register">Зарегистрируйтесь</a></p>
+  </div>
+</div>
+<%- include('../partials/footer') %>

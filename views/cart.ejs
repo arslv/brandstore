@@ -1,0 +1,61 @@
+<%- include('partials/header') %>
+<div class="wrap page">
+  <h1 class="page-title">Корзина</h1>
+  <% if (!cart.items.length) { %>
+    <p class="page-sub">В корзине пока пусто.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <a class="btn" href="/order-link">Заказать по ссылке</a>
+      <a class="btn btn--ghost" href="/stores">Выбрать магазин</a>
+    </div>
+  <% } else { %>
+    <p class="page-sub"><%= cart.count %> <%= fmt.plural(cart.count, 'товар', 'товара', 'товаров') %></p>
+    <div class="cart">
+      <div>
+        <% cart.items.forEach((it) => { %>
+          <div class="cart-item">
+            <% if (it.image) { %><img class="cart-item__img" src="<%= it.image %>" alt=""><% } else { %><span class="cart-item__ph"><%- icon('image') %></span><% } %>
+            <div>
+              <div class="cart-item__store">
+                <% if (it.store_name) { %><%- include('partials/store-icon', { s: { name: it.store_name, slug: it.store_slug, icon_domain: it.icon_domain, logo_path: it.logo_path }, size: 'sm' }) %><%= it.store_name %><% } else { %>Другой магазин<% } %>
+              </div>
+              <div class="cart-item__title">
+                <% if (it.type === 'product') { %><a href="/product/<%= it.product_id %>"><%= it.title %></a><% } else { %><%= it.title %><% } %>
+              </div>
+              <div class="cart-item__meta">
+                <span>Размер: <b><%= it.size || '—' %></b></span>
+                <span>Цвет: <b><%= it.color || '—' %></b></span>
+                <span><%= fmt.eur(it.price_eur) %> за шт.</span>
+                <% if (it.type === 'link' && it.url) { %><a class="link" href="<%= it.url %>" target="_blank" rel="noopener nofollow">Ссылка на товар</a><% } %>
+              </div>
+              <% if (it.comment) { %><div class="cart-item__meta" style="margin-top:4px">Комментарий: <%= it.comment %></div><% } %>
+              <% if (!it.region_ok) { %><div class="warn-note"><%- icon('alert') %><span>Ссылка не с португальской версии сайта — цена может отличаться. Менеджер уточнит.</span></div><% } %>
+            </div>
+            <div class="cart-item__side">
+              <span class="cart-item__price"><%= fmt.rub(it.line_rub) %></span>
+              <form method="post" action="/cart/update/<%= it.id %>" class="qty" aria-label="Количество">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button type="submit" name="qty" value="<%= it.qty - 1 %>" aria-label="Меньше" <%= it.qty <= 1 ? 'disabled' : '' %>>−</button>
+                <span><%= it.qty %></span>
+                <button type="submit" name="qty" value="<%= it.qty + 1 %>" aria-label="Больше">+</button>
+              </form>
+              <form method="post" action="/cart/remove/<%= it.id %>">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                <button class="btn btn--sm btn--ghost" type="submit"><%- icon('trash') %> Удалить</button>
+              </form>
+            </div>
+          </div>
+        <% }) %>
+        <div style="margin-top:20px"><a class="link" href="/order-link">+ Добавить ещё товар по ссылке</a></div>
+      </div>
+      <aside class="panel summary">
+        <p class="panel__title">Ваш заказ</p>
+        <div class="summary__row"><span>Товары, <%= cart.count %> шт.</span><span><%= fmt.rub(cart.subtotal) %></span></div>
+        <div class="summary__row"><span>Доставка в Россию</span><span><%= cart.delivery ? fmt.rub(cart.delivery) : 'посчитает менеджер' %></span></div>
+        <div class="summary__row summary__total"><span>Итого</span><span><%= fmt.rub(cart.total) %></span></div>
+        <a class="btn btn--block" href="/checkout">Перейти к оформлению</a>
+        <p class="muted small" style="margin:14px 0 0">Сейчас оплачивать не нужно. Сначала проверим наличие и пришлём ссылку на оплату.</p>
+      </aside>
+    </div>
+  <% } %>
+</div>
+<%- include('partials/footer') %>

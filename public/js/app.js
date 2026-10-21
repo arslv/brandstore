@@ -1,0 +1,382 @@
+(function () {
+  'use strict';
+  const $ = (s, root = document) => root.querySelector(s);
+  const $$ = (s, root = document) => Array.from(root.querySelectorAll(s));
+  const csrf = () => (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  const fmtRub = (n) => Math.round(n).toLocaleString('ru-RU').replace(/,/g, ' ') + ' ₽';
+  const toRub = (eur, rate, markup) => (eur > 0 ? Math.ceil((eur * rate * (1 + markup / 100)) / 10) * 10 : 0);
+
+  // ---------- Уведомление ----------
+  let toastTimer;
+  function toast(html) {
+    const t = $('#toast');
+    if (!t) return;
+    t.innerHTML = html;
+    t.classList.add('is-visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('is-visible'), 4000);
+  }
+  function setCartCount(n) {
+    $$('[data-cart-count]').forEach((el) => { el.textContent = n || ''; el.dataset.count = n; });
+  }
+  async function post(url, data) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': csrf(), Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(data || {}),
+      credentials: 'same-origin',
+    });
+    const json = await res.json().catch(() => ({}));
+    return { status: res.status, ok: res.ok, json };
+  }
+
+  // ---------- Иконки магазинов: favicon → запасной сервис → монограмма ----------
+  function setupIcon(img) {
+    const box = img.closest('[data-store-icon]');
+    if (!box) return;
+    const domain = box.dataset.domain;
+    const isService = /google\.com\/s2\/favicons|icons\.duckduckgo\.com/.test(img.src);
+    const check = () => {
+      const w = img.naturalWidth;
+      const minW = img.src.includes('duckduckgo') ? 24 : 32;
+      if (!isService || w >= minW) { box.classList.add('has-img'); return; }
+      fallback();
+    };
+    const fallback = () => {
+      if (domain && !img.dataset.tried) {
+        img.dataset.tried = '1';
+        img.src = 'https://icons.duckduckgo.com/ip3/' + domain + '.ico';
+      } else {
+        img.remove();
+        box.classList.remove('has-img');
+      }
+    };
+    img.addEventListener('load', check);
+    img.addEventListener('error', fallback);
+    if (img.complete) { img.naturalWidth ? check() : fallback(); }
+  }
+  $$('[data-store-icon] img').forEach(setupIcon);
+
+  // ---------- Меню на телефоне ----------
+  const burger = $('[data-burger]');
+  if (burger) burger.addEventListener('click', () => {
+    const h = $('#header');
+    const open = h.classList.toggle('is-open');
+    burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+
+  // ---------- Автоотправка сортировки ----------
+  $$('form[data-autosubmit] select').forEach((s) => s.addEventListener('change', () => s.form.submit()));
+
+  // ---------- Калькулятор ----------
+  $$('[data-calc]').forEach((box) => {
+    const rate = parseFloat(box.dataset.rate), markup = parseFloat(box.dataset.markup);
+    const input = $('[data-calc-eur]', box), out = $('[data-calc-rub]', box);
+    const upd = () => { out.textContent = fmtRub(toRub(parseFloat(input.value) || 0, rate, markup)); };
+    input.addEventListener('input', upd);
+  });
+
+  // ---------- Избранное ----------
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-fav]');
+    if (!btn) return;
+    e.preventDefault();
+    const r = await post('/favorites/' + btn.dataset.fav + '/toggle');
+    if (r.status === 401) { window.location.href = '/login'; return; }
+    if (r.ok) {
+      $$('[data-fav="' + btn.dataset.fav + '"]').forEach((b) => b.setAttribute('aria-pressed', r.json.active ? 'true' : 'false'));
+      toast(r.json.active ? 'Добавлено в избранное. <a href="/favorites">Открыть</a>' : 'Убрано из избранного');
+    }
+  });
+
+  // ---------- Карточка товара: выбор размера и цвета ----------
+  const addForm = $('form[data-add-product]');
+  if (addForm) {
+    $$('[data-choice]', addForm).forEach((group) => {
+      const name = group.dataset.choice;
+      const hidden = $('input[name="' + name + '"]', addForm);
+      group.addEventListener('click', (e) => {
+        const chip = e.target.closest('.chip');
+        if (!chip) return;
+        $$('.chip', group).forEach((c) => c.setAttribute('aria-pressed', 'false'));
+        chip.setAttribute('aria-pressed', 'true');
+        hidden.value = chip.dataset.value;
+        $('[data-error]', addForm).textContent = '';
+      });
+    });
+    addForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = $('[data-error]', addForm);
+      const color = $('input[name="color"]', addForm), size = $('input[name="size"]', addForm);
+      if (color && !color.value) { err.textContent = 'Выберите цвет'; return; }
+      if (size && !size.value) { err.textContent = 'Выберите размер'; return; }
+      const r = await post('/cart/add-product', Object.fromEntries(new FormData(addForm)));
+      if (r.ok) {
+        setCartCount(r.json.count);
+        toast('Товар в корзине. <a href="/cart">Перейти в корзину</a>');
+      } else {
+        err.textContent = r.json.error || 'Не получилось добавить товар. Обновите страницу.';
+      }
+    });
+  }
+
+  // ---------- Заказ по ссылке ----------
+  const linkForm = $('form[data-link-form]');
+  if (linkForm) {
+    const rate = parseFloat(linkForm.dataset.rate), markup = parseFloat(linkForm.dataset.markup);
+    const urlInput = $('[data-url]', linkForm);
+    const detect = $('[data-detect]', linkForm);
+    const detectText = $('[data-detect-text]', linkForm);
+    const detectIcon = $('[data-detect-icon]', linkForm);
+    const select = $('[data-store-select]', linkForm);
+    const price = $('[data-price]', linkForm), qty = $('[data-qty]', linkForm);
+    const sum = $('[data-sum]', linkForm), sumNote = $('[data-sum-note]', linkForm);
+    const ICON_OK = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 12 4 4 10-10"/></svg>';
+    const ICON_WARN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4 2.5 20h19L12 4z"/><path d="M12 10v4M12 17v.5"/></svg>';
+    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    const updSum = () => {
+      const eur = parseFloat(String(price.value).replace(',', '.')) || 0;
+      const q = Math.max(1, parseInt(qty.value, 10) || 1);
+      const rub = toRub(eur, rate, markup) * q;
+      sum.textContent = rub ? fmtRub(rub) : '—';
+      sumNote.textContent = rub ? (q > 1 ? q + ' шт. · ' : '') + 'без учёта доставки в Россию' : 'Введите цену в евро';
+    };
+    price.addEventListener('input', updSum);
+    qty.addEventListener('input', updSum);
+
+    // --- Автоматическая цена по ссылке ---
+    const parseBox = $('[data-parse]', linkForm);
+    const parseLoading = $('[data-parse-loading]', linkForm);
+    const parseCard = $('[data-parse-card]', linkForm);
+    const parseFail = $('[data-parse-fail]', linkForm);
+    const titleInput = $('[data-title]', linkForm);
+    const sizeInput = $('[data-size]', linkForm), colorInput = $('[data-color]', linkForm);
+    const sizeChips = $('[data-size-chips]', linkForm), colorChips = $('[data-color-chips]', linkForm);
+    const sizeDefault = $('[data-size-default]', linkForm);
+    const imageUrl = $('[data-image-url]', linkForm), parsedPrice = $('[data-parsed-price]', linkForm);
+    const photoInput = $('#photo', linkForm);
+    const auto = { price: '', title: '', color: '' };
+    let parseSeq = 0;
+
+    const FAIL_TEXT = {
+      blocked: 'Сайт магазина не отдаёт данные автоматически. Введите цену вручную — как на странице товара.',
+      no_price: 'Не нашли цену на этой странице. Проверьте, что это страница товара, и введите цену вручную.',
+      not_found: 'Страница не открывается: возможно, товар сняли с продажи. Проверьте ссылку.',
+      timeout: 'Сайт магазина долго не отвечает. Введите цену вручную.',
+      network: 'Не получилось открыть сайт магазина. Введите цену вручную.',
+      redirected: 'Ссылка ведёт на другой сайт. Скопируйте ссылку прямо со страницы товара.',
+      rate_limit: 'Слишком много проверок подряд. Подождите минуту или введите цену вручную.',
+    };
+
+    const setIfAuto = (input, key, value) => {
+      if (!value) return;
+      if (!input.value || input.value === auto[key]) {
+        input.value = value;
+        auto[key] = value;
+      }
+    };
+
+    const renderChips = (box, items, input) => {
+      box.innerHTML = '';
+      items.forEach((it) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.textContent = it.name;
+        if (it.available === false) { b.disabled = true; b.title = 'Нет в наличии'; }
+        b.setAttribute('aria-pressed', input.value === it.name ? 'true' : 'false');
+        b.addEventListener('click', () => {
+          input.value = it.name;
+          $$('.chip', box).forEach((c) => c.setAttribute('aria-pressed', c === b ? 'true' : 'false'));
+        });
+        box.appendChild(b);
+      });
+    };
+
+    const resetParse = () => {
+      parseSeq += 1;
+      parseBox.hidden = true;
+      sizeChips.innerHTML = '';
+      colorChips.innerHTML = '';
+      sizeDefault.hidden = false;
+      imageUrl.value = '';
+      parsedPrice.value = '';
+    };
+
+    const runParse = async (url) => {
+      const seq = ++parseSeq;
+      parseBox.hidden = false;
+      parseLoading.hidden = false;
+      parseCard.hidden = true;
+      parseFail.hidden = true;
+      const loadingText = parseLoading.lastChild;
+      loadingText.textContent = 'Смотрим цену на сайте магазина…';
+      const slowTimer = setTimeout(() => {
+        if (seq === parseSeq) loadingText.textContent = 'Открываем страницу как обычный посетитель — это может занять до 20 секунд…';
+      }, 2500);
+      const r = await fetch('/api/parse?url=' + encodeURIComponent(url), { headers: { Accept: 'application/json' } })
+        .then((x) => x.json()).catch(() => ({ ok: false, reason: 'network' }));
+      clearTimeout(slowTimer);
+      if (seq !== parseSeq) return;
+      parseLoading.hidden = true;
+
+      if (!r.ok || !r.priceEur) {
+        parseFail.hidden = false;
+        parseFail.textContent = r.ok && r.currency && r.currency !== 'EUR'
+          ? 'На странице цена в ' + r.currency + ' — откройте португальскую версию сайта или введите цену в евро вручную.'
+          : (FAIL_TEXT[r.reason] || FAIL_TEXT.no_price);
+        if (r.ok) setIfAuto(titleInput, 'title', r.title);
+        return;
+      }
+
+      // Цена и данные найдены
+      setIfAuto(price, 'price', String(r.priceEur));
+      setIfAuto(titleInput, 'title', r.title);
+      parsedPrice.value = String(r.priceEur);
+      imageUrl.value = r.image || '';
+      updSum();
+
+      parseCard.hidden = false;
+      const img = $('[data-parse-img]', parseCard);
+      if (r.image) { img.src = r.image; img.hidden = false; parseCard.classList.remove('no-img'); }
+      else { img.hidden = true; parseCard.classList.add('no-img'); }
+      img.onerror = () => { img.hidden = true; parseCard.classList.add('no-img'); };
+      $('[data-parse-title]', parseCard).textContent = r.title || 'Товар';
+      $('[data-parse-rub]', parseCard).textContent = fmtRub(r.priceRub || toRub(r.priceEur, rate, markup));
+      $('[data-parse-eur]', parseCard).innerHTML = esc(String(r.priceEur).replace('.', ',')) + ' €'
+        + (r.oldPriceEur ? ' <s>' + esc(String(r.oldPriceEur).replace('.', ',')) + ' €</s>' : '');
+      const notes = ['Цена с сайта магазина — проверьте перед добавлением.'];
+      if (r.available === false) notes.unshift('Похоже, товара сейчас нет в наличии.');
+      if (r.image) notes.push('Фото подставим в заказ.');
+      $('[data-parse-note]', parseCard).textContent = notes.join(' ');
+
+      if (r.sizes && r.sizes.length) {
+        renderChips(sizeChips, r.sizes, sizeInput);
+        sizeDefault.hidden = true;
+      }
+      if (r.colors && r.colors.length) {
+        if (r.selectedColor) setIfAuto(colorInput, 'color', r.selectedColor);
+        else if (r.colors.length === 1) setIfAuto(colorInput, 'color', r.colors[0].name);
+        renderChips(colorChips, r.colors, colorInput);
+      }
+    };
+
+    let timer;
+    const runDetect = async () => {
+      const v = urlInput.value.trim();
+      if (!v) { detect.classList.remove('is-visible'); resetParse(); return; }
+      const res = await fetch('/api/detect?url=' + encodeURIComponent(v)).then((r) => r.json()).catch(() => null);
+      if (!res) return;
+      detect.classList.add('is-visible');
+      detect.classList.remove('detect--warn');
+      resetParse();
+      if (!res.ok) {
+        detect.classList.add('detect--warn'); detectIcon.innerHTML = ICON_WARN; detectText.textContent = res.error;
+      } else if (!res.store) {
+        detect.classList.add('detect--warn'); detectIcon.innerHTML = ICON_WARN;
+        detectText.innerHTML = 'Этого магазина нет в нашем списке. Заказ всё равно можно оформить — менеджер проверит магазин.';
+      } else if (res.regionOk) {
+        detectIcon.innerHTML = ICON_OK;
+        detectText.innerHTML = '<b>' + esc(res.store.name) + '</b> — ' + (res.store.region === 'PT' ? 'португальская версия сайта, всё верно.' : 'европейский сайт магазина, всё верно.');
+        select.value = res.store.id;
+        runParse(v);
+      } else {
+        detect.classList.add('detect--warn'); detectIcon.innerHTML = ICON_WARN;
+        detectText.innerHTML = 'Это не та версия сайта <b>' + esc(res.store.name) + '</b>. Откройте товар на <a class="link" target="_blank" rel="noopener" href="' + esc(res.store.url) + '">португальском сайте магазина</a> и скопируйте ссылку оттуда — цены там другие.';
+        select.value = res.store.id;
+      }
+    };
+    urlInput.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(runDetect, 500); });
+    if (urlInput.value) runDetect();
+
+    // Если покупатель загрузил своё фото — оно важнее фото с сайта
+    if (photoInput) photoInput.addEventListener('change', () => { if (photoInput.files.length) imageUrl.value = ''; });
+
+    $$('[data-fill]', linkForm).forEach((chip) => chip.addEventListener('click', () => {
+      const input = $('[name="' + chip.dataset.fill + '"]', linkForm);
+      input.value = chip.dataset.value;
+      input.focus();
+    }));
+    updSum();
+  }
+
+  // ---------- Список брендов: поиск, категории, подкатегории красоты ----------
+  const filterBox = $('[data-stores-filter]');
+  if (filterBox) {
+    const q = $('[data-filter-q]', filterBox);
+    const chips = $$('[data-cat]', filterBox);
+    const subBox = $('[data-filter-subs]', filterBox);
+    const subChips = $$('[data-sub]', filterBox);
+    const cards = $$('[data-stores-list] .store-card');
+    const groups = $$('[data-letter-group]');
+    const empty = $('[data-stores-empty]');
+    const pressed = (list) => (list.find((c) => c.getAttribute('aria-pressed') === 'true') || { dataset: {} });
+    let cat = pressed(chips).dataset.cat || '';
+    let sub = pressed(subChips).dataset.sub || '';
+    const syncUrl = () => {
+      const url = new URL(window.location.href);
+      cat ? url.searchParams.set('cat', cat) : url.searchParams.delete('cat');
+      sub ? url.searchParams.set('sub', sub) : url.searchParams.delete('sub');
+      history.replaceState(null, '', url);
+    };
+    const apply = () => {
+      const term = q.value.trim().toLowerCase();
+      subBox.hidden = cat !== 'beauty';
+      let visible = 0;
+      cards.forEach((c) => {
+        const ok = (!term || c.dataset.name.includes(term))
+          && (!cat || c.dataset.cats.includes(',' + cat + ','))
+          && (cat !== 'beauty' || !sub || c.dataset.subs.includes(',' + sub + ','));
+        c.hidden = !ok;
+        if (ok) visible++;
+        const t = $('.store-card__cats', c);
+        if (t) t.textContent = cat === 'beauty' && t.dataset.subsText ? t.dataset.subsText : t.dataset.catsText;
+      });
+      groups.forEach((g) => {
+        const any = $$('.store-card', g).some((c) => !c.hidden);
+        g.hidden = !any;
+        const link = $('[data-letter-link="' + g.dataset.letterGroup + '"]');
+        if (link) link.style.opacity = any ? '' : '.3';
+      });
+      empty.hidden = visible > 0;
+    };
+    q.addEventListener('input', apply);
+    chips.forEach((chip) => chip.addEventListener('click', () => {
+      cat = chip.dataset.cat;
+      sub = '';
+      chips.forEach((c) => c.setAttribute('aria-pressed', c === chip ? 'true' : 'false'));
+      subChips.forEach((c) => c.setAttribute('aria-pressed', c.dataset.sub === '' ? 'true' : 'false'));
+      syncUrl();
+      apply();
+    }));
+    subChips.forEach((chip) => chip.addEventListener('click', () => {
+      sub = chip.dataset.sub;
+      subChips.forEach((c) => c.setAttribute('aria-pressed', c === chip ? 'true' : 'false'));
+      syncUrl();
+      apply();
+    }));
+    apply();
+  }
+
+  // ---------- Ленты товаров на главной ----------
+  $$('[data-rail]').forEach((rail) => {
+    const track = $('[data-rail-track]', rail), prev = $('[data-rail-prev]', rail), next = $('[data-rail-next]', rail);
+    const upd = () => {
+      prev.hidden = track.scrollLeft <= 4;
+      next.hidden = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+    };
+    const step = () => track.clientWidth * 0.8;
+    prev.addEventListener('click', () => track.scrollBy({ left: -step(), behavior: 'smooth' }));
+    next.addEventListener('click', () => track.scrollBy({ left: step(), behavior: 'smooth' }));
+    track.addEventListener('scroll', upd, { passive: true });
+    window.addEventListener('resize', upd);
+    upd();
+  });
+
+  // ---------- Подтверждение действий ----------
+  document.addEventListener('submit', (e) => {
+    const msg = e.target.dataset && e.target.dataset.confirm;
+    if (msg && !window.confirm(msg)) e.preventDefault();
+  });
+})();

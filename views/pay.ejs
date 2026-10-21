@@ -1,0 +1,35 @@
+<%- include('partials/header') %>
+<div class="wrap page">
+  <nav class="crumbs"><a href="/account">Мои заказы</a><span>/</span><a href="/account/orders/<%= order.id %>"><%= order.number %></a><span>/</span><span>Оплата</span></nav>
+  <h1 class="page-title">Оплата заказа <%= order.number %></h1>
+  <p class="page-sub">Выберите способ оплаты. После оплаты заказ сразу перейдёт в статус «Оплачен», и мы начнём выкуп.</p>
+
+  <% if (failed) { %><div class="flash flash--error" style="margin:0 0 20px">Оплата не прошла. Попробуйте ещё раз или выберите другой способ.</div><% } %>
+
+  <form class="pay" method="post" action="/pay/<%= order.id %>">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <div>
+      <% if (payMode === 'demo') { %>
+        <div class="test-banner"><%- icon('alert') %><span>Тестовый режим: деньги не списываются. Подключить настоящую оплату можно в админке → Настройки.</span></div>
+      <% } %>
+      <div class="methods" role="radiogroup" aria-label="Способ оплаты">
+        <% methods.forEach((m) => { %>
+          <label class="method">
+            <input type="radio" name="method" value="<%= m.key %>" <%= selected === m.key ? 'checked' : '' %>>
+            <span class="method__icon"><%- icon(m.icon) %></span>
+            <span><b><%= m.label %></b><span class="muted"><%= m.hint %></span></span>
+          </label>
+        <% }) %>
+      </div>
+    </div>
+    <aside class="panel summary">
+      <p class="panel__title">Заказ <%= order.number %></p>
+      <div class="summary__row"><span>Товары</span><span><%= fmt.rub(order.subtotal_rub) %></span></div>
+      <div class="summary__row"><span>Доставка</span><span><%= order.delivery_rub ? fmt.rub(order.delivery_rub) : 'посчитает менеджер' %></span></div>
+      <div class="summary__row summary__total"><span>К оплате</span><span><%= fmt.rub(order.total_rub) %></span></div>
+      <button class="btn btn--block" type="submit"><%- icon('lock') %> Оплатить <%= fmt.rub(order.total_rub) %></button>
+      <p class="muted small" style="margin:14px 0 0">Платёж проходит на защищённой странице платёжного сервиса. Данные карты не попадают к нам.</p>
+    </aside>
+  </form>
+</div>
+<%- include('partials/footer') %>

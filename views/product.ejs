@@ -1,0 +1,70 @@
+<%- include('partials/header') %>
+<div class="wrap page">
+  <nav class="crumbs">
+    <a href="/">Главная</a><span>/</span>
+    <a href="/catalog?cat=<%= product.category %>"><%= CATEGORIES[product.category] || 'Каталог' %></a><span>/</span>
+    <span><%= product.title %></span>
+  </nav>
+  <div class="pdp">
+    <div class="gallery">
+      <% if (product.images.length) { product.images.forEach((img) => { %><img src="<%= img %>" alt="<%= product.title %>"><% }) } else { %><img src="/img/demo/placeholder.svg" alt=""><% } %>
+    </div>
+    <div class="pdp__info">
+      <% if (store) { %>
+        <a class="pdp__brand" href="/stores/<%= store.slug %>"><%- include('partials/store-icon', { s: store, size: 'sm' }) %><%= store.name %></a>
+      <% } %>
+      <h1 class="pdp__title"><%= product.title %></h1>
+      <div class="price">
+        <span class="price__now <%= product.discount ? 'is-sale' : '' %>"><%= fmt.rub(product.price_rub) %></span>
+        <% if (product.old_rub) { %><span class="price__old"><%= fmt.rub(product.old_rub) %></span><span class="card__badge" style="position:static">−<%= product.discount %>%</span><% } %>
+      </div>
+      <p class="pdp__eur">Цена в магазине: <%= fmt.eur(product.price_eur) %></p>
+
+      <form data-add-product>
+        <input type="hidden" name="product_id" value="<%= product.id %>">
+        <% if (product.colorsList.length) { %>
+        <div class="pdp__block">
+          <p class="label" style="margin:0 0 10px">Цвет<span class="muted" data-picked="color"></span></p>
+          <div class="chips" data-choice="color">
+            <% product.colorsList.forEach((c) => { %><button type="button" class="chip" data-value="<%= c %>" aria-pressed="<%= product.colorsList.length === 1 ? 'true' : 'false' %>"><%= c %></button><% }) %>
+          </div>
+          <input type="hidden" name="color" value="<%= product.colorsList.length === 1 ? product.colorsList[0] : '' %>">
+        </div>
+        <% } %>
+        <% if (product.sizesList.length) { %>
+        <div class="pdp__block">
+          <p class="label" style="margin:0 0 10px">Размер<span class="muted" data-picked="size"></span></p>
+          <div class="chips" data-choice="size">
+            <% product.sizesList.forEach((sz) => { %><button type="button" class="chip" data-value="<%= sz %>" aria-pressed="<%= product.sizesList.length === 1 ? 'true' : 'false' %>"><%= sz %></button><% }) %>
+          </div>
+          <input type="hidden" name="size" value="<%= product.sizesList.length === 1 ? product.sizesList[0] : '' %>">
+        </div>
+        <% } %>
+        <div class="pdp__actions">
+          <button class="btn" type="submit">Добавить в корзину</button>
+          <button class="btn btn--ghost" type="button" data-fav="<%= product.id %>" aria-pressed="<%= favIds.has(product.id) ? 'true' : 'false' %>" aria-label="В избранное"><%- icon('heart') %></button>
+        </div>
+        <p class="pdp__error" data-error role="alert"></p>
+      </form>
+
+      <% if (product.description) { %><p class="muted" style="margin-top:20px"><%= product.description %></p><% } %>
+
+      <ul class="info-list">
+        <li><%- icon('shield') %><span>Покупаем только в официальном магазине <%= store ? store.name : '' %> на португальском сайте.</span></li>
+        <li><%- icon('card') %><span>Оплата после проверки наличия — картой российского банка или через СБП.</span></li>
+        <li><%- icon('truck') %><span>Доставка в Россию с трек-номером. Стоимость менеджер сообщит до оплаты.</span></li>
+        <% if (product.source_url) { %><li><%- icon('external') %><span><a class="link" href="<%= product.source_url %>" target="_blank" rel="noopener nofollow">Посмотреть товар на сайте магазина</a></span></li><% } %>
+      </ul>
+    </div>
+  </div>
+
+  <% if (related.length) { %>
+  <section class="section">
+    <div class="section__head"><h2 class="section__title">Похожие товары</h2></div>
+    <div class="products">
+      <% related.forEach((p) => { %><%- include('partials/product-card', { p }) %><% }) %>
+    </div>
+  </section>
+  <% } %>
+</div>
+<%- include('partials/footer') %>

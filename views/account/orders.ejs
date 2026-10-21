@@ -1,0 +1,34 @@
+<%- include('../partials/header') %>
+<div class="wrap page">
+  <div class="account">
+    <%- include('_nav') %>
+    <div>
+      <h1 class="page-title">Мои заказы</h1>
+      <% if (!orders.length) { %>
+        <p class="page-sub">Заказов пока нет.</p>
+        <a class="btn" href="/order-link">Заказать по ссылке</a>
+      <% } else { %>
+        <p class="page-sub"><%= orders.length %> <%= fmt.plural(orders.length, 'заказ', 'заказа', 'заказов') %></p>
+        <% orders.forEach((o) => { const st = fmt.ORDER_STATUSES[o.status] || { label: o.status, tone: 'muted' }; %>
+          <a class="order-row" href="/account/orders/<%= o.id %>">
+            <div>
+              <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+                <b>Заказ <%= o.number %></b>
+                <span class="status status--<%= st.tone %>"><%= st.label %></span>
+              </div>
+              <div class="muted small" style="margin-top:4px">от <%= fmt.date(o.created_at) %> · <%= o.itemCount %> <%= fmt.plural(o.itemCount, 'товар', 'товара', 'товаров') %></div>
+              <div class="order-row__thumbs">
+                <% o.items.forEach((it) => { %><% if (it.image_url) { %><img src="<%= it.image_url %>" alt=""><% } else { %><span></span><% } %><% }) %>
+              </div>
+            </div>
+            <div style="text-align:right">
+              <b style="font-size:18px"><%= fmt.rub(o.total_rub) %></b>
+              <% if (o.status === 'awaiting_payment') { %><div class="small" style="color:var(--warn);margin-top:6px">Нужно оплатить</div><% } %>
+            </div>
+          </a>
+        <% }) %>
+      <% } %>
+    </div>
+  </div>
+</div>
+<%- include('../partials/footer') %>

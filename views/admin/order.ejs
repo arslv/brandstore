@@ -1,0 +1,136 @@
+<%- include('_header') %>
+<% const st = ORDER_STATUSES[order.status]; %>
+<div class="admin__head">
+  <div>
+    <div class="crumbs" style="margin:0 0 6px"><a href="/admin/orders">Заказы</a><span>/</span><span><%= order.number %></span></div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><h1>Заказ <%= order.number %></h1><span class="status status--<%= st.tone %>"><%= st.label %></span></div>
+    <div class="muted small" style="margin-top:4px">от <%= fmt.dateTime(order.created_at) %> · курс в заказе 1 € = <%= Number(order.rate_eur).toFixed(2) %> ₽ · наценка <%= order.markup_pct %>%</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="stack">
+    <form method="post" action="/admin/orders/<%= order.id %>/items">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <div class="table-wrap">
+        <table class="table table--items">
+          <thead><tr><th></th><th>Товар</th><th>Размер / цвет</th><th>Цена, € / кол-во</th><th>Наличие</th><th class="num">Итого</th></tr></thead>
+          <tbody>
+            <% order.items.forEach((it) => { %>
+              <tr data-item-row data-rate="<%= order.rate_eur %>" data-markup="<%= order.markup_pct %>">
+                <td><% if (it.image_url) { %><a href="<%= it.image_url %>" target="_blank" rel="noopener"><img class="thumb" src="<%= it.image_url %>" alt=""></a><% } else { %><span class="thumb"></span><% } %></td>
+                <td style="min-width:220px">
+                  <div style="display:flex;gap:8px;align-items:center;font-weight:700">
+                    <% if (it.store_name) { %><%- include('../partials/store-icon', { s: { name: it.store_name, slug: it.store_slug, icon_domain: it.icon_domain, logo_path: it.logo_path }, size: 'sm' }) %><%= it.store_name %><% } else { %>Другой магазин<% } %>
+                  </div>
+                  <div style="margin-top:4px"><%= it.title %></div>
+                  <% if (it.url) { %><a class="link small" href="<%= it.url %>" target="_blank" rel="noopener nofollow">Открыть товар в магазине ↗</a><% } %>
+                  <% if (it.comment) { %><div class="small muted" style="margin-top:4px">«<%= it.comment %>»</div><% } %>
+                  <% if (!it.region_ok) { %><div class="flag flag--warn"><%- icon('alert') %><span>Ссылка не с португальской версии сайта — сверьте цену на <a class="link" href="<%= it.store_url %>" target="_blank" rel="noopener">PT-сайте</a></span></div><% } %>
+                  <% if (euLimit && it.price_eur > euLimit) { %><div class="flag flag--danger"><%- icon('alert') %><span>Дороже <%= euLimit %> € за штуку — проверьте ограничения ЕС на отправку в РФ</span></div><% } %>
+                </td>
+                <td>
+                  <input class="input w-text" name="size_<%= it.id %>" value="<%= it.size %>" aria-label="Размер" style="margin-bottom:6px">
+                  <input class="input w-text" name="color_<%= it.id %>" value="<%= it.color %>" aria-label="Цвет">
+                </td>
+                <td>
+                  <% if (it.type === 'link') { %><div class="small <%= it.price_auto ? '' : 'muted' %>" style="margin-bottom:4px"><%= it.price_auto ? 'цена с сайта' : 'цена от покупателя' %></div><% } %>
+                  <input class="input w-price" type="number" min="0" step="0.01" name="price_<%= it.id %>" value="<%= it.price_eur %>" data-item-price aria-label="Цена в евро" style="margin-bottom:6px">
+                  <input class="input w-price" type="number" min="1" max="20" name="qty_<%= it.id %>" value="<%= it.qty %>" data-item-qty aria-label="Количество">
+                </td>
+                <td>
+                  <select class="select w-status" name="status_<%= it.id %>" data-item-status aria-label="Наличие">
+                    <% Object.entries(ITEM_STATUSES).forEach(([k, label]) => { %><option value="<%= k %>" <%= it.item_status === k ? 'selected' : '' %>><%= label %></option><% }) %>
+                  </select>
+                </td>
+                <td class="num"><b data-item-rub><%= fmt.rub(it.line_total_rub) %></b></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:14px;flex-wrap:wrap">
+        <label class="field" style="margin:0;flex-direction:row;align-items:center;gap:10px">
+          <span class="label">Доставка, ₽</span>
+          <input class="input" type="number" min="0" name="delivery_rub" value="<%= order.delivery_rub %>" style="width:140px;min-height:38px">
+        </label>
+        <button class="btn btn--sm" type="submit">Сохранить позиции и пересчитать</button>
+      </div>
+    </form>
+
+    <div class="panel">
+      <div class="summary__row"><span>Товары</span><b><%= fmt.rub(order.subtotal_rub) %></b></div>
+      <div class="summary__row"><span>Доставка</span><b><%= fmt.rub(order.delivery_rub) %></b></div>
+      <div class="summary__row summary__total"><span>К оплате</span><span><%= fmt.rub(order.total_rub) %></span></div>
+      <p class="muted small" style="margin:10px 0 0">Сумма в евро: <%= fmt.eur(order.items.filter((i) => i.item_status !== 'unavailable').reduce((s, i) => s + i.price_eur * i.qty, 0)) %></p>
+    </div>
+
+    <% if (order.comment) { %><div class="panel"><p class="label" style="margin:0 0 6px">Комментарий покупателя</p><p style="margin:0;white-space:pre-line"><%= order.comment %></p></div><% } %>
+  </div>
+
+  <div class="stack">
+    <div class="panel">
+      <p class="panel__title">Покупатель</p>
+      <dl class="dl">
+        <dt>Имя</dt><dd><%= order.customer_name %></dd>
+        <dt>Телефон</dt><dd><a class="link" href="tel:<%= order.phone %>"><%= order.phone %></a></dd>
+        <dt>Почта</dt><dd><a class="link" href="mailto:<%= order.email %>"><%= order.email %></a></dd>
+        <dt>Доставка</dt><dd><%= DELIVERY_METHODS[order.delivery_method] || order.delivery_method %></dd>
+        <dt>Адрес</dt><dd><%= order.city %>, <%= order.address %></dd>
+      </dl>
+    </div>
+
+    <div class="panel">
+      <p class="panel__title">Оплата</p>
+      <dl class="dl">
+        <dt>Статус</dt><dd><%= order.paid_at ? 'Оплачен' : (order.status === 'awaiting_payment' ? 'Ждём оплату' : 'Не выставлена') %></dd>
+        <% if (methodLabel) { %><dt>Способ</dt><dd><%= methodLabel %></dd><% } %>
+        <% if (order.paid_at) { %><dt>Дата</dt><dd><%= fmt.dateTime(order.paid_at) %></dd><% } %>
+        <% if (order.payment_id) { %><dt>Платёж</dt><dd class="small"><%= order.payment_id %><%= order.payment_id.startsWith('demo_') ? ' (тест)' : '' %></dd><% } %>
+      </dl>
+    </div>
+
+    <form class="panel" method="post" action="/admin/orders/<%= order.id %>/status">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <p class="panel__title">Статус и оплата</p>
+      <div class="field">
+        <label for="status">Статус</label>
+        <select class="select" id="status" name="status">
+          <% Object.entries(ORDER_STATUSES).forEach(([k, s]) => { %><option value="<%= k %>" <%= order.status === k ? 'selected' : '' %>><%= s.label %></option><% }) %>
+        </select>
+        <% if (order.status === 'new') { %><span class="field__hint">Проверили наличие и цены? Выберите «Ожидает оплаты» — покупатель получит письмо с суммой.</span><% } %>
+      </div>
+      <div class="field">
+        <label for="note">Сообщение покупателю <span class="muted">— уйдёт в письме</span></label>
+        <textarea class="textarea" id="note" name="note" style="min-height:70px" placeholder="Например: всё в наличии, заказ готов к оплате"></textarea>
+      </div>
+      <% if (payMode === 'link') { %>
+      <div class="field">
+        <label for="payment_url">Ссылка на оплату</label>
+        <input class="input" id="payment_url" name="payment_url" type="url" value="<%= order.payment_url %>" placeholder="https://…">
+        <span class="field__hint">Платёжная ссылка из банка или ЮKassa. Покупатель увидит кнопку «Оплатить».</span>
+      </div>
+      <% } else { %><input type="hidden" name="payment_url" value="<%= order.payment_url %>"><% } %>
+      <div class="field">
+        <label for="tracking_number">Трек-номер</label>
+        <input class="input" id="tracking_number" name="tracking_number" value="<%= order.tracking_number %>">
+      </div>
+      <div class="field">
+        <label for="manager_comment">Комментарий для покупателя на странице заказа</label>
+        <textarea class="textarea" id="manager_comment" name="manager_comment" style="min-height:70px"><%= order.manager_comment %></textarea>
+      </div>
+      <label class="checkbox" style="margin-bottom:14px"><input type="checkbox" name="notify" value="1" checked><span>Отправить покупателю письмо при смене статуса</span></label>
+      <button class="btn btn--block" type="submit">Сохранить</button>
+    </form>
+
+    <div class="panel">
+      <p class="panel__title">История</p>
+      <ul class="timeline">
+        <% order.events.forEach((e) => { %>
+          <li class="is-done"><b><%= (ORDER_STATUSES[e.status] || {}).label || e.status %></b><span class="muted small"><%= fmt.dateTime(e.created_at) %></span><% if (e.note) { %><div class="small"><%= e.note %></div><% } %></li>
+        <% }) %>
+      </ul>
+    </div>
+  </div>
+</div>
+<%- include('_footer') %>

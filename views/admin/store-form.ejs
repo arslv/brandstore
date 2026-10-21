@@ -1,0 +1,106 @@
+<%- include('_header') %>
+<div class="admin__head">
+  <div>
+    <div class="crumbs" style="margin:0 0 6px"><a href="/admin/stores">Магазины</a><span>/</span><span><%= store.id ? store.name : 'Новый' %></span></div>
+    <div style="display:flex;gap:14px;align-items:center"><% if (store.id) { %><%- include('../partials/store-icon', { s: store }) %><% } %><h1><%= store.id ? store.name : 'Новый магазин' %></h1></div>
+  </div>
+  <% if (store.id) { %><a class="btn btn--sm btn--ghost" href="/stores/<%= store.slug %>" target="_blank" rel="noopener">Страница на сайте</a><% } %>
+</div>
+<form class="grid-2" method="post" action="<%= store.id ? '/admin/stores/' + store.id : '/admin/stores' %>?_csrf=<%= csrfToken %>" enctype="multipart/form-data">
+  <div class="panel">
+    <div class="field">
+      <label for="name">Название</label>
+      <input class="input <%= errors.name ? 'is-invalid' : '' %>" id="name" name="name" value="<%= store.name || '' %>" required>
+      <% if (errors.name) { %><span class="field__error"><%= errors.name %></span><% } %>
+    </div>
+    <div class="field">
+      <label for="url">Ссылка на португальскую версию сайта</label>
+      <input class="input <%= errors.url ? 'is-invalid' : '' %>" id="url" name="url" type="url" value="<%= store.url || '' %>" required>
+      <% if (errors.url) { %><span class="field__error"><%= errors.url %></span><% } %>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="link_prefix">Префикс PT для проверки ссылок</label>
+        <input class="input" id="link_prefix" name="link_prefix" value="<%= store.link_prefix || '' %>" placeholder="zara.com/pt">
+        <span class="field__hint">Оставьте пустым — заполнится по ссылке.</span>
+      </div>
+      <div class="field">
+        <label for="icon_domain">Домен для иконки</label>
+        <input class="input" id="icon_domain" name="icon_domain" value="<%= store.icon_domain || '' %>" placeholder="zara.com">
+      </div>
+    </div>
+    <div class="field">
+      <span class="label">Регион сайта</span>
+      <div class="radio-cards">
+        <label class="radio-card"><input type="radio" name="region" value="PT" <%= store.region !== 'EU' ? 'checked' : '' %>><span><b>PT</b><br><span class="muted small">Португальская версия сайта</span></span></label>
+        <label class="radio-card"><input type="radio" name="region" value="EU" <%= store.region === 'EU' ? 'checked' : '' %>><span><b>EU</b><br><span class="muted small">Общеевропейский сайт с доставкой в Португалию</span></span></label>
+      </div>
+    </div>
+    <div class="field">
+      <span class="label">Категории</span>
+      <div class="cat-checks">
+        <% Object.entries(CATEGORIES).forEach(([k, label]) => { %>
+          <label class="checkbox"><input type="checkbox" name="categories" value="<%= k %>" <%= cats.includes(k) ? 'checked' : '' %>><span><%= label %></span></label>
+        <% }) %>
+      </div>
+    </div>
+    <div class="field">
+      <span class="label">Подкатегории красоты <span class="muted">— если отмечена «Красота»</span></span>
+      <div class="cat-checks">
+        <% Object.entries(BEAUTY_SUBCATS).forEach(([k, label]) => { %>
+          <label class="checkbox"><input type="checkbox" name="subcategories" value="<%= k %>" <%= subcats.includes(k) ? 'checked' : '' %>><span><%= label %></span></label>
+        <% }) %>
+      </div>
+    </div>
+    <div class="field">
+      <span class="label">Теги цены на странице товара <span class="muted">— если цена не подставляется сама</span></span>
+      <p class="field__hint" style="margin:0 0 10px">Откройте любой товар магазина в Chrome → правый клик по цене → «Просмотреть код». Возьмите класс элемента с ценой и впишите его с точкой, например <code>.money-amount__main</code>. Чтобы взять атрибут, допишите <code>@имя</code>: <code>meta[property="og:image"]@content</code>. Несколько вариантов — через <code>||</code>. Можно прислать кусок кода разработчику — он подберёт.</p>
+      <div class="row">
+        <div class="field"><label for="sel_price">Цена</label><input class="input" id="sel_price" name="sel_price" value="<%= store.sel_price || '' %>" placeholder=".product-price .current"></div>
+        <div class="field"><label for="sel_old_price">Старая цена</label><input class="input" id="sel_old_price" name="sel_old_price" value="<%= store.sel_old_price || '' %>" placeholder=".product-price .old"></div>
+      </div>
+      <div class="row">
+        <div class="field"><label for="sel_title">Название</label><input class="input" id="sel_title" name="sel_title" value="<%= store.sel_title || '' %>" placeholder="h1"></div>
+        <div class="field"><label for="sel_image">Фото</label><input class="input" id="sel_image" name="sel_image" value="<%= store.sel_image || '' %>" placeholder='meta[property="og:image"]@content'></div>
+      </div>
+      <div class="field" style="margin:0"><label for="sel_sizes">Размеры <span class="muted">— каждый размер отдельным элементом</span></label><input class="input" id="sel_sizes" name="sel_sizes" value="<%= store.sel_sizes || '' %>" placeholder=".size-list button"></div>
+    </div>
+    <div class="field" style="margin:0">
+      <label for="note">Описание на странице магазина <span class="muted">— необязательно</span></label>
+      <textarea class="textarea" id="note" name="note"><%= store.note || '' %></textarea>
+    </div>
+  </div>
+  <div class="stack">
+    <div class="panel">
+      <p class="panel__title">Логотип</p>
+      <p class="muted small" style="margin-top:-8px">Если иконка сайта выглядит плохо, загрузите логотип — квадратный PNG или SVG.</p>
+      <div class="field"><input class="input" name="logo" type="file" accept="image/*"></div>
+      <% if (store.logo_path) { %><label class="checkbox"><input type="checkbox" name="remove_logo" value="1"><span>Убрать загруженный логотип</span></label><% } %>
+    </div>
+    <% if (store.id) { %>
+    <div class="panel" data-parse-test>
+      <p class="panel__title">Проверить ссылку</p>
+      <p class="small muted" style="margin:-8px 0 10px">Вставьте ссылку на товар этого магазина — покажем, что получилось взять и как. Сначала сохраните теги, если меняли их.</p>
+      <div style="display:flex;gap:8px">
+        <input class="input" type="url" placeholder="https://…" data-parse-test-url style="min-height:38px">
+        <button class="btn btn--sm" type="button" data-parse-test-run>Проверить</button>
+      </div>
+      <div class="small" data-parse-test-out style="margin-top:12px"></div>
+    </div>
+    <div class="panel">
+      <p class="panel__title">Цена по ссылке</p>
+      <% if (!store.parse_ok && !store.parse_fail) { %>
+        <p class="small muted" style="margin:-8px 0 0">Ещё не проверялась. Вставьте ссылку на товар этого магазина в форме «Заказ по ссылке» — результат появится здесь.</p>
+      <% } else { %>
+        <p class="small" style="margin:-8px 0 0">Получилось <b><%= store.parse_ok %></b> из <b><%= store.parse_ok + store.parse_fail %></b>. Последняя попытка: <%= fmt.parseLabel(store.parse_last) %><%= store.parse_last_at ? ', ' + fmt.dateTime(store.parse_last_at) : '' %>.</p>
+      <% } %>
+    </div>
+    <% } %>
+    <div class="panel">
+      <label class="checkbox" style="margin-bottom:10px"><input type="checkbox" name="is_active" value="1" <%= store.is_active ? 'checked' : '' %>><span>Показывать на сайте</span></label>
+      <label class="checkbox" style="margin-bottom:16px"><input type="checkbox" name="is_popular" value="1" <%= store.is_popular ? 'checked' : '' %>><span>Популярный — показывать на главной</span></label>
+      <button class="btn btn--block" type="submit"><%= store.id ? 'Сохранить' : 'Добавить магазин' %></button>
+    </div>
+  </div>
+</form>
+<%- include('_footer') %>

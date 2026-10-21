@@ -1,0 +1,26 @@
+<%- include('_header') %>
+<div class="admin__head"><h1>Товары витрины</h1><a class="btn btn--sm" href="/admin/products/new">Добавить товар</a></div>
+<p class="muted" style="margin:-10px 0 20px;max-width:70ch">Товары, которые показываются в каталоге как в обычном маркетплейсе. Цены вводятся в евро — на сайте они пересчитываются в рубли с наценкой автоматически. Заказы по ссылкам от покупателей смотрите в разделе «Заказы».</p>
+<% if (!list.length) { %>
+  <div class="notice">Товаров нет. Каталог на сайте покажет подсказку «Заказать по ссылке».</div>
+<% } else { %>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th></th><th>Название</th><th>Магазин</th><th>Категория</th><th class="num">Цена</th><th class="num">На сайте</th><th>Статус</th></tr></thead>
+    <tbody>
+      <% list.forEach((p) => { %>
+        <tr data-href="/admin/products/<%= p.id %>/edit">
+          <td><% if (p.image) { %><img class="thumb" src="<%= p.image %>" alt=""><% } else { %><span class="thumb"></span><% } %></td>
+          <td><a href="/admin/products/<%= p.id %>/edit"><b><%= p.title %></b></a><% if (p.is_demo) { %><div class="muted small">пример — замените или удалите</div><% } %></td>
+          <td><%= p.store_name || '—' %></td>
+          <td><%= CATEGORIES[p.category] %></td>
+          <td class="num"><%= fmt.eur(p.price_eur) %></td>
+          <td class="num"><b><%= fmt.rub(pricing.eurToRub(p.price_eur)) %></b></td>
+          <td><%= p.is_active ? (p.is_featured ? 'В популярном' : 'Показан') : 'Скрыт' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+<%- include('_footer') %>

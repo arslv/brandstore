@@ -1,0 +1,17 @@
+<%- include('../partials/head', { admin: true }) %>
+<div class="admin">
+  <aside class="admin__side">
+    <a href="/admin" class="logo">brand <span class="logo__store">store</span><i class="logo__dot"></i></a>
+    <nav class="admin__nav" aria-label="Админка">
+      <% adminNav.forEach(([href, label]) => { const active = href === '/admin' ? (path === '/admin' || path === '/admin/') : (path === href || path.startsWith(href + '/')); %>
+        <a href="<%= href %>" class="<%= active ? 'is-active' : '' %>"><%= label %><% if (href === '/admin/orders' && newOrdersCount) { %><span class="pill"><%= newOrdersCount %></span><% } %></a>
+      <% }) %>
+    </nav>
+    <div class="admin__side-foot">
+      <a href="/" target="_blank" rel="noopener">Открыть сайт</a>
+      <span class="muted"><%= user.email %></span>
+      <form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit">Выйти</button></form>
+    </div>
+  </aside>
+  <main class="admin__main">
+    <% if (flash) { %><div class="flash flash--<%= flash.type %>" role="status" style="margin:0 0 18px"><%= flash.text %></div><% } %>

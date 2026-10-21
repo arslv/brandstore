@@ -1,0 +1,44 @@
+</main>
+<footer class="footer">
+  <div class="wrap">
+    <div class="footer__grid">
+      <div>
+        <a href="/" class="logo">brand <span class="logo__store">store</span><i class="logo__dot"></i></a>
+        <p class="small muted" style="max-width:34ch;margin-top:14px">Покупаем в официальных магазинах Португалии и привозим в Россию. Цена в рублях известна до оплаты.</p>
+      </div>
+      <div>
+        <h4>Покупателям</h4>
+        <ul>
+          <li><a href="/how-it-works">Как это работает</a></li>
+          <li><a href="/order-link">Заказ по ссылке</a></li>
+          <li><a href="/stores">Все бренды (<%= storesTotal %>)</a></li>
+          <li><a href="/account">Мои заказы</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Каталог</h4>
+        <ul>
+          <li><a href="/?g=women">Женщинам</a></li>
+          <li><a href="/?g=men">Мужчинам</a></li>
+          <li><a href="/catalog?sort=new">Новинки</a></li>
+          <li><a href="/catalog?popular=1">Популярное</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Связаться</h4>
+        <ul>
+          <% if (shop.email) { %><li><a href="mailto:<%= shop.email %>"><%= shop.email %></a></li><% } %>
+          <% if (shop.phone) { %><li><a href="tel:<%= shop.phone.replace(/[^+\d]/g, '') %>"><%= shop.phone %></a></li><% } %>
+          <% if (shop.telegram) { %><li><a href="<%= shop.telegram.startsWith('http') ? shop.telegram : 'https://t.me/' + shop.telegram.replace('@','') %>" target="_blank" rel="noopener">Telegram</a></li><% } %>
+        </ul>
+      </div>
+    </div>
+    <div class="footer__bottom">
+      <span>© <%= new Date().getFullYear() %> Brand Store</span>
+      <span>Товарные знаки принадлежат их владельцам. Brand Store не является официальным представителем магазинов.</span>
+    </div>
+  </div>
+</footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

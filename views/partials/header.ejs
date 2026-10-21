@@ -1,0 +1,54 @@
+<%- include('head') %>
+<%
+  const _g = path === '/' ? (query.g || '') : (path === '/catalog' ? (query.gender || '') : '');
+  const _gq = _g ? '&gender=' + _g : '';
+%>
+<div class="topbar">
+  <div class="wrap">
+    <span>Магазины Португалии с доставкой в Россию · цены в рублях</span>
+    <nav class="topbar__links" aria-label="Сервис">
+      <a href="/order-link">Заказ по ссылке</a>
+      <a href="/how-it-works">Как это работает</a>
+      <% if (shop.telegram) { %><a href="<%= shop.telegram.startsWith('http') ? shop.telegram : 'https://t.me/' + shop.telegram.replace('@','') %>" target="_blank" rel="noopener">Telegram</a><% } %>
+      <% if (shop.phone) { %><a href="tel:<%= shop.phone.replace(/[^+\d]/g, '') %>"><%= shop.phone %></a><% } %>
+      <% if (user && user.role === 'admin') { %><a href="/admin">Админка</a><% } %>
+    </nav>
+  </div>
+</div>
+<header class="header" id="header">
+  <div class="wrap">
+    <div class="header__main">
+      <nav class="genders" aria-label="Разделы">
+        <a href="/?g=women" class="<%= _g === 'women' ? 'is-active' : '' %>">Женщинам</a>
+        <a href="/?g=men" class="<%= _g === 'men' ? 'is-active' : '' %>">Мужчинам</a>
+      </nav>
+      <a href="/" class="logo" aria-label="Brand Store — на главную">brand <span class="logo__store">store</span><i class="logo__dot"></i></a>
+      <div class="actions">
+        <a class="action" href="<%= user ? '/account' : '/login' %>"><%- icon('user') %><span><%= user ? (user.name ? user.name.split(' ')[0] : 'Профиль') : 'Войти' %></span></a>
+        <a class="action" href="/favorites"><%- icon('heart') %><span>Избранное</span></a>
+        <a class="action" href="/cart"><%- icon('bag') %><span>Корзина</span><span class="badge-count" data-cart-count data-count="<%= cartCount %>"><%= cartCount || '' %></span></a>
+      </div>
+    </div>
+    <div class="header__nav">
+      <div class="mobile-row">
+      <div class="genders-mobile">
+        <a href="/?g=women" class="<%= _g === 'women' ? 'is-active' : '' %>">Женщинам</a><a href="/?g=men" class="<%= _g === 'men' ? 'is-active' : '' %>">Мужчинам</a>
+      </div>
+      <nav class="nav" aria-label="Основное меню">
+        <a href="/stores" class="<%= path.startsWith('/stores') ? 'is-active' : '' %>">Бренды</a>
+        <a href="/catalog?sort=new<%= _gq %>" class="<%= path === '/catalog' && query.sort === 'new' ? 'is-active' : '' %>">Новинки</a>
+        <a href="/catalog?popular=1<%= _gq %>" class="<%= path === '/catalog' && query.popular === '1' ? 'is-active' : '' %>">Популярное</a>
+      </nav>
+      </div>
+      <form class="search" action="/catalog" method="get" role="search">
+        <label class="visually-hidden" for="q">Поиск</label>
+        <input id="q" name="q" type="search" placeholder="Бренд, магазин или товар" value="<%= query.q || '' %>" autocomplete="off">
+        <button type="submit" aria-label="Найти"><%- icon('search') %></button>
+      </form>
+    </div>
+  </div>
+</header>
+<main>
+  <% if (flash) { %>
+    <div class="wrap"><div class="flash flash--<%= flash.type %>" role="status"><%= flash.text %></div></div>
+  <% } %>

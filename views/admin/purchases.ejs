@@ -1,0 +1,42 @@
+<%- include('_header') %>
+<div class="admin__head"><h1>Закупка</h1></div>
+<p class="muted" style="margin:-10px 0 20px;max-width:70ch">Товары из оплаченных заказов, которые нужно выкупить. Сгруппированы по магазинам — удобно оформлять одной корзиной на сайте магазина. Когда все товары заказа выкуплены, заказ переходит в статус «Выкуплен».</p>
+<% const keys = Object.keys(groups); %>
+<% if (!keys.length) { %>
+  <div class="notice">Сейчас выкупать нечего. Здесь появятся товары, когда покупатели оплатят заказы.</div>
+<% } %>
+<% keys.forEach((name) => { const g = groups[name]; %>
+  <section class="purchase-group">
+    <div class="purchase-group__head">
+      <%- include('../partials/store-icon', { s: { name, slug: g.store.store_slug, icon_domain: g.store.icon_domain, logo_path: g.store.logo_path }, size: 'sm' }) %>
+      <h2 style="margin:0;font-size:18px"><%= name %></h2>
+      <span class="muted"><%= g.items.length %> поз. · <%= fmt.eur(g.sumEur) %></span>
+      <% if (g.store.store_url) { %><a class="link small" href="<%= g.store.store_url %>" target="_blank" rel="noopener">Сайт магазина ↗</a><% } %>
+    </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th></th><th>Товар</th><th>Размер</th><th>Цвет</th><th>Кол-во</th><th class="num">Цена</th><th>Заказ</th><th></th></tr></thead>
+        <tbody>
+          <% g.items.forEach((it) => { %>
+            <tr>
+              <td><% if (it.image_url) { %><img class="thumb" src="<%= it.image_url %>" alt=""><% } else { %><span class="thumb"></span><% } %></td>
+              <td><%= it.title %><% if (it.url) { %><div><a class="link small" href="<%= it.url %>" target="_blank" rel="noopener nofollow">Открыть товар ↗</a></div><% } %><% if (it.comment) { %><div class="small muted">«<%= it.comment %>»</div><% } %></td>
+              <td><b><%= it.size %></b></td>
+              <td><b><%= it.color %></b></td>
+              <td><%= it.qty %></td>
+              <td class="num"><%= fmt.eur(it.price_eur) %></td>
+              <td><a class="link" href="/admin/orders/<%= it.order_id %>"><%= it.number %></a></td>
+              <td>
+                <form method="post" action="/admin/purchases/<%= it.id %>">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button class="btn btn--sm" type="submit">Выкуплен</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+<% }) %>
+<%- include('_footer') %>

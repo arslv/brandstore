@@ -1,0 +1,94 @@
+<%- include('../partials/header') %>
+<% const st = fmt.ORDER_STATUSES[order.status] || { label: order.status, tone: 'muted' }; const flowIdx = fmt.STATUS_FLOW.indexOf(order.status); %>
+<div class="wrap page">
+  <div class="account">
+    <%- include('_nav') %>
+    <div>
+      <nav class="crumbs"><a href="/account">Мои заказы</a><span>/</span><span><%= order.number %></span></nav>
+      <% if (justPaid) { %>
+        <div class="paid-banner"><%- icon('check') %><div><b>Оплата прошла</b><div class="small" style="opacity:.8">Заказ оплачен<%= methodLabel ? ' (' + methodLabel + ')' : '' %>. Начинаем выкуп в магазинах — пришлём письмо, когда отправим посылку.</div></div></div>
+      <% } %>
+      <% if (isNew) { %>
+        <div class="panel panel--dark" style="margin-bottom:24px">
+          <p class="panel__title" style="margin-bottom:6px">Заказ <%= order.number %> оформлен</p>
+          <p style="margin:0;opacity:.85">Мы проверим наличие и цены в магазинах и пришлём ссылку на оплату на <b><%= order.email %></b>. Обычно это занимает до 24 часов.</p>
+        </div>
+      <% } %>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+        <h1 class="page-title" style="margin:0">Заказ <%= order.number %></h1>
+        <span class="status status--<%= st.tone %>"><%= st.label %></span>
+      </div>
+      <p class="page-sub">от <%= fmt.dateTime(order.created_at) %></p>
+
+      <div class="order-layout">
+        <div>
+          <% order.items.forEach((it) => { %>
+            <div class="cart-item">
+              <% if (it.image_url) { %><img class="cart-item__img" src="<%= it.image_url %>" alt=""><% } else { %><span class="cart-item__ph"><%- icon('image') %></span><% } %>
+              <div>
+                <div class="cart-item__store"><% if (it.store_name) { %><%- include('../partials/store-icon', { s: { name: it.store_name, slug: it.store_slug, icon_domain: it.icon_domain, logo_path: it.logo_path }, size: 'sm' }) %><%= it.store_name %><% } %></div>
+                <div class="cart-item__title"><%= it.title %></div>
+                <div class="cart-item__meta">
+                  <span>Размер: <b><%= it.size || '—' %></b></span>
+                  <span>Цвет: <b><%= it.color || '—' %></b></span>
+                  <span>Кол-во: <b><%= it.qty %></b></span>
+                  <% if (it.item_status !== 'pending') { %><span><b><%= fmt.ITEM_STATUSES[it.item_status] %></b></span><% } %>
+                </div>
+              </div>
+              <div class="cart-item__side">
+                <span class="cart-item__price" style="<%= it.item_status === 'unavailable' ? 'text-decoration:line-through;color:var(--muted)' : '' %>"><%= fmt.rub(it.unit_price_rub * it.qty) %></span>
+              </div>
+            </div>
+          <% }) %>
+          <% if (order.manager_comment) { %>
+            <div class="panel" style="margin-top:20px"><p class="label" style="margin:0 0 6px">Комментарий менеджера</p><p style="margin:0;white-space:pre-line"><%= order.manager_comment %></p></div>
+          <% } %>
+        </div>
+
+        <aside>
+          <div class="panel summary" style="position:static">
+            <div class="summary__row"><span>Товары</span><span><%= fmt.rub(order.subtotal_rub) %></span></div>
+            <div class="summary__row"><span>Доставка</span><span><%= order.delivery_rub ? fmt.rub(order.delivery_rub) : 'посчитает менеджер' %></span></div>
+            <div class="summary__row summary__total"><span>Итого</span><span><%= fmt.rub(order.total_rub) %></span></div>
+            <% if (order.status === 'awaiting_payment') { %>
+              <% if (payMode !== 'link' || order.payment_url) { %>
+                <a class="btn btn--block" href="/pay/<%= order.id %>" style="margin-top:18px"><%- icon('card') %> Оплатить <%= fmt.rub(order.total_rub) %></a>
+                <p class="muted small" style="margin:10px 0 0">Картой, через СБП, SberPay, T-Pay или ЮMoney.</p>
+              <% } else { %>
+                <p class="small" style="margin:16px 0 0"><%= shop.paymentInstructions || 'Ссылку на оплату пришлёт менеджер на ' + order.email + '.' %></p>
+              <% } %>
+            <% } else if (order.status === 'new') { %>
+              <p class="muted small" style="margin:16px 0 0">Оплатить можно будет после проверки наличия — пришлём письмо.</p>
+            <% } %>
+            <% if (order.paid_at) { %><p class="small" style="margin:16px 0 0">Оплачено <%= fmt.dateTime(order.paid_at) %><%= methodLabel ? ' · ' + methodLabel : '' %></p><% } %>
+            <% if (order.tracking_number) { %><p style="margin:16px 0 0">Трек-номер: <b><%= order.tracking_number %></b></p><% } %>
+          </div>
+
+          <div class="panel" style="margin-top:16px">
+            <p class="panel__title">Статус</p>
+            <% if (order.status === 'cancelled') { %>
+              <p class="muted" style="margin:0">Заказ отменён.</p>
+            <% } else { %>
+            <ul class="timeline">
+              <% fmt.STATUS_FLOW.forEach((key, i) => { const ev = order.events.filter((e) => e.status === key).pop(); %>
+                <li class="<%= i < flowIdx ? 'is-done' : (i === flowIdx ? 'is-current' : '') %>">
+                  <b><%= fmt.ORDER_STATUSES[key].label %></b>
+                  <% if (ev) { %><span class="muted small"><%= fmt.dateTime(ev.created_at) %></span><% } %>
+                  <% if (ev && ev.note && i === flowIdx) { %><div class="small"><%= ev.note %></div><% } %>
+                </li>
+              <% }) %>
+            </ul>
+            <% } %>
+          </div>
+
+          <div class="panel" style="margin-top:16px">
+            <p class="panel__title">Доставка</p>
+            <p style="margin:0"><%= order.customer_name %>, <%= order.phone %></p>
+            <p class="muted small" style="margin:6px 0 0"><%= DELIVERY_METHODS[order.delivery_method] || '' %>: <%= order.city %>, <%= order.address %></p>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+<%- include('../partials/footer') %>

@@ -1,0 +1,33 @@
+{
+  "name": "brandstore",
+  "version": "1.0.0",
+  "description": "Brand Store — маркетплейс покупок в магазинах Португалии с доставкой в Россию",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "icons": "node scripts/fetch-icons.js",
+    "test": "node --test test/parser.test.js test/browser.test.js",
+    "check": "node scripts/check-link.js",
+    "browser": "playwright install --no-shell chromium"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^18.0.8",
+    "ejs": "^7.0.2",
+    "express": "^4.22.3",
+    "express-rate-limit": "^8.7.1",
+    "express-session": "^1.19.0",
+    "helmet": "^8.3.0",
+    "multer": "^2.4.0",
+    "node-html-parser": "^7.1.0",
+    "nodemailer": "^10.1.7",
+    "patchright": "^1.64.1",
+    "playwright": "^1.56.0",
+    "undici": "^6.29.1"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=22.13"
+  }
+}

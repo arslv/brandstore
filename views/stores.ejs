@@ -1,0 +1,49 @@
+<%- include('partials/header') %>
+<div class="wrap page">
+  <nav class="crumbs"><a href="/">Главная</a><span>/</span><span>Бренды</span></nav>
+  <h1 class="page-title">Бренды</h1>
+  <p class="page-sub"><%= stores.length %> магазинов. Открываем португальские версии сайтов: цены там в евро, мы пересчитаем их в рубли. <span class="region region--PT">PT</span> — португальский сайт, <span class="region region--EU">EU</span> — европейский сайт с доставкой в Португалию.</p>
+
+  <div class="stores-toolbar" data-stores-filter style="flex-direction:column;align-items:stretch">
+    <label class="visually-hidden" for="store-q">Найти магазин</label>
+    <input class="input" id="store-q" type="search" placeholder="Найти магазин" autocomplete="off" data-filter-q>
+    <div class="chips" data-filter-cats>
+      <button type="button" class="chip" data-cat="" aria-pressed="<%= !activeCat ? 'true' : 'false' %>">Все</button>
+      <% Object.entries(CATEGORIES).forEach(([k, label]) => { %>
+        <button type="button" class="chip" data-cat="<%= k %>" aria-pressed="<%= activeCat === k ? 'true' : 'false' %>"><%= label %></button>
+      <% }) %>
+    </div>
+    <div class="chips subchips" data-filter-subs <%= activeCat === 'beauty' ? '' : 'hidden' %>>
+      <button type="button" class="chip" data-sub="" aria-pressed="<%= !activeSub ? 'true' : 'false' %>">Вся красота</button>
+      <% Object.entries(BEAUTY_SUBCATS).forEach(([k, label]) => { %>
+        <button type="button" class="chip" data-sub="<%= k %>" aria-pressed="<%= activeSub === k ? 'true' : 'false' %>"><%= label %></button>
+      <% }) %>
+    </div>
+  </div>
+
+  <nav class="letters" aria-label="По алфавиту">
+    <% letters.forEach((l) => { %><a href="#letter-<%= l %>" data-letter-link="<%= l %>"><%= l %></a><% }) %>
+  </nav>
+
+  <div data-stores-list>
+    <% letters.forEach((l) => { %>
+      <section class="letter-group" id="letter-<%= l %>" data-letter-group="<%= l %>">
+        <h2 class="letter-group__title"><%= l %></h2>
+        <div class="stores-grid">
+          <% groups[l].forEach((s) => { %>
+            <a class="store-card" href="/stores/<%= s.slug %>" data-name="<%= s.name.toLowerCase() %>" data-cats=",<%= s.categories %>," data-subs=",<%= s.subcategories %>,">
+              <%- include('partials/store-icon', { s }) %>
+              <span class="store-card__body">
+                <span class="store-card__name"><%= s.name %></span>
+                <span class="store-card__cats" data-cats-text="<%= s.cats.map((c) => CATEGORIES[c]).filter(Boolean).join(', ') %>" data-subs-text="<%= (s.subcategories || '').split(',').map((c) => BEAUTY_SUBCATS[c]).filter(Boolean).join(', ') %>"><%= s.cats.map((c) => CATEGORIES[c]).filter(Boolean).join(', ') %></span>
+              </span>
+              <span class="region region--<%= s.region %>"><%= s.region %></span>
+            </a>
+          <% }) %>
+        </div>
+      </section>
+    <% }) %>
+    <p class="empty-hint" data-stores-empty hidden>Такого магазина пока нет в списке. Всё равно можно <a class="link" href="/order-link">оформить заказ по ссылке</a> — менеджер проверит магазин.</p>
+  </div>
+</div>
+<%- include('partials/footer') %>

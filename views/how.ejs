@@ -1,0 +1,36 @@
+<%- include('partials/header') %>
+<div class="wrap page">
+  <nav class="crumbs"><a href="/">Главная</a><span>/</span><span>Как это работает</span></nav>
+  <h1 class="page-title">Как это работает</h1>
+  <p class="page-sub">Мы покупаем вещи в официальных интернет-магазинах Португалии от вашего имени и привозим их в Россию.</p>
+
+  <div class="how" style="margin-bottom:48px">
+    <div class="how__step"><b>Выберите товар</b><p>Откройте магазин из <a class="link" href="/stores">нашего списка</a> — ссылки ведут на португальские версии сайтов.</p></div>
+    <div class="how__step"><b>Оформите заказ по ссылке</b><p>Вставьте ссылку, укажите размер, цвет и цену в евро. Цена в рублях посчитается сразу.</p></div>
+    <div class="how__step"><b>Оплатите после проверки</b><p>Менеджер проверит наличие и пришлёт ссылку на оплату картой или через СБП.</p></div>
+    <div class="how__step"><b>Получите посылку</b><p>Выкупим, проверим и отправим в Россию. Трек-номер придёт на почту.</p></div>
+  </div>
+
+  <div class="link-order">
+    <div>
+      <h2 class="section__title" style="margin-bottom:16px">Частые вопросы</h2>
+      <div class="info-list" style="margin:0">
+        <details class="filters__group" open><summary><b>Почему именно португальская версия сайта?</b></summary><p class="muted">Мы покупаем в Португалии, поэтому цена и наличие должны быть с португальского сайта. Если вставить ссылку с другой версии, мы подскажем, как открыть нужную.</p></details>
+        <details class="filters__group"><summary><b>Из чего складывается цена?</b></summary><p class="muted">Цена товара в евро по курсу ЦБ плюс услуги сервиса: выкуп, проверка, упаковка. Доставку в Россию менеджер считает по весу посылки и сообщает до оплаты.</p></details>
+        <details class="filters__group"><summary><b>Что если товара нет в наличии?</b></summary><p class="muted">Менеджер напишет и предложит замену или уберёт позицию из заказа. Вы платите только за то, что есть в наличии.</p></details>
+        <details class="filters__group"><summary><b>Как оплатить?</b></summary><p class="muted">Картой любого российского банка или через СБП. Ссылку на оплату пришлём после проверки заказа.</p></details>
+        <details class="filters__group"><summary><b>Можно заказать из магазина, которого нет в списке?</b></summary><p class="muted">Да, оформите заказ по ссылке — менеджер проверит магазин и свяжется с вами.</p></details>
+      </div>
+    </div>
+    <div class="panel panel--dark" data-calc data-rate="<%= quote.rate %>" data-markup="<%= quote.markup %>">
+      <p class="panel__title">Посчитать цену</p>
+      <div class="calc__row" style="margin-top:8px">
+        <label class="calc__eur"><span class="visually-hidden">Цена в евро</span><input type="number" min="0" step="0.01" value="100" data-calc-eur inputmode="decimal" style="color:var(--ink)"><span>€</span></label>
+        <output class="calc__rub" data-calc-rub><%= fmt.rub(pricing.eurToRub(100, quote.rate, quote.markup)) %></output>
+      </div>
+      <p class="small" style="opacity:.7;margin-top:14px">По курсу ЦБ, с выкупом и проверкой товара. Без учёта доставки в Россию.</p>
+      <a class="btn btn--light btn--block" href="/order-link" style="margin-top:12px">Заказать по ссылке</a>
+    </div>
+  </div>
+</div>
+<%- include('partials/footer') %>
