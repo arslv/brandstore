@@ -1,4 +1,4 @@
 node_modules/
-data/
-.env
-public/uploads/
+/data/
+/.env
+/public/uploads/
