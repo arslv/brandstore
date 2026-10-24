@@ -80,3 +80,9 @@
 .home-tab-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
 .home-tab-row:first-of-type { border-top: 0; }
 .home-tab-row .input { width: 72px; min-height: 36px; padding: 6px 10px; }
+
+/* Карточка магазина: плитка на главной */
+.tile-preview { aspect-ratio: 7 / 4; }
+.tile-preview:hover { transform: none; }
+.color-field { display: flex; gap: 8px; align-items: center; }
+.color-field input[type="color"] { width: 46px; height: 46px; padding: 3px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); cursor: pointer; flex-shrink: 0; }

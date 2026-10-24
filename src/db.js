@@ -177,6 +177,8 @@ addColumn('order_items', 'price_auto', 'INTEGER NOT NULL DEFAULT 0');
 for (const col of ['sel_price', 'sel_old_price', 'sel_title', 'sel_image', 'sel_sizes']) addColumn('stores', col, "TEXT NOT NULL DEFAULT ''");
 // v5: вкладки главной, на которых виден магазин, и его место в сетке («all:1,women:3»)
 addColumn('stores', 'home_tabs', "TEXT NOT NULL DEFAULT ''");
+// v6: плитка бренда на главной — фон, цвет надписи, шрифт, надпись (пусто — название магазина)
+for (const col of ['tile_bg', 'tile_fg', 'tile_font', 'tile_text']) addColumn('stores', col, "TEXT NOT NULL DEFAULT ''");
 
 // ---------- Настройки по умолчанию ----------
 const DEFAULT_SETTINGS = {
@@ -358,6 +360,53 @@ if (Number((db.prepare("SELECT value FROM settings WHERE key = 'schema_version'"
     const upd = db.prepare("UPDATE stores SET home_tabs = ? WHERE slug = ? AND home_tabs = ''");
     for (const [slug, t] of Object.entries(tabs)) upd.run(formatHomeTabs(t), slug);
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '5')").run();
+  });
+  tx();
+}
+
+// ---------- Версия 6: плитки брендов на главной в цветах логотипов ----------
+// [фон, цвет надписи, шрифт, надпись]. Цвета — как у подложки и надписи логотипа бренда; поправить можно
+// в админке: «Магазины → магазин → Плитка на главной». Трогаем только магазины без своих настроек плитки.
+const TILE_SEED = {
+  zara: ['#000000', '#FFFFFF', 'didone', 'ZARA'],
+  'h-and-m': ['#E50010', '#FFFFFF', 'italic', 'H&M'],
+  mango: ['#FFFFFF', '#000000', 'geometric', 'MANGO'],
+  'massimo-dutti': ['#FFFFFF', '#000000', 'didone', 'MASSIMO DUTTI'],
+  'zara-home': ['#FFFFFF', '#000000', 'didone', 'ZARA HOME'],
+  cos: ['#FFFFFF', '#000000', 'geometric', 'COS'],
+  uniqlo: ['#FF0000', '#FFFFFF', 'heavy', 'UNIQLO'],
+  adidas: ['#000000', '#FFFFFF', 'heavy', 'adidas'],
+  sephora: ['#000000', '#FFFFFF', 'geometric', 'SEPHORA'],
+  farfetch: ['#FFFFFF', '#000000', 'geometric', 'FARFETCH'],
+  'el-corte-ingles': ['#00843D', '#FFFFFF', 'italic', 'El Corte Inglés'],
+  lacoste: ['#FFFFFF', '#004E3C', 'geometric', 'LACOSTE'],
+  veja: ['#FFFFFF', '#000000', 'heavy', 'VEJA'],
+  sezane: ['#FFFFFF', '#000000', 'didone', 'Sézane'],
+  gucci: ['#000000', '#FFFFFF', 'didone', 'GUCCI'],
+  prada: ['#FFFFFF', '#000000', 'didone', 'PRADA'],
+  pandora: ['#FFFFFF', '#000000', 'geometric', 'PANDORA'],
+  bershka: ['#000000', '#FFFFFF', 'geometric', 'BERSHKA'],
+  'pull-and-bear': ['#FFFFFF', '#000000', 'geometric', 'PULL&BEAR'],
+  stradivarius: ['#FFFFFF', '#000000', 'didone', 'STRADIVARIUS'],
+  'and-other-stories': ['#FFFFFF', '#000000', 'didone', '& Other Stories'],
+  'hugo-boss': ['#000000', '#FFFFFF', 'heavy', 'HUGO BOSS'],
+  'ralph-lauren': ['#041E42', '#FFFFFF', 'didone', 'RALPH LAUREN'],
+  levis: ['#C41230', '#FFFFFF', 'heavy', "Levi's"],
+  timberland: ['#FFFFFF', '#000000', 'heavy', 'Timberland'],
+  lego: ['#E3000B', '#FFFFFF', 'heavy', 'LEGO'],
+  arket: ['#FFFFFF', '#000000', 'geometric', 'ARKET'],
+  'vista-alegre': ['#FFFFFF', '#000000', 'didone', 'VISTA ALEGRE'],
+  'claus-porto': ['#FFFFFF', '#000000', 'didone', 'CLAUS PORTO'],
+  smeg: ['#FFFFFF', '#000000', 'heavy', 'SMEG'],
+  dyson: ['#FFFFFF', '#000000', 'heavy', 'dyson'],
+  byredo: ['#FFFFFF', '#000000', 'geometric', 'BYREDO'],
+};
+if (Number((db.prepare("SELECT value FROM settings WHERE key = 'schema_version'").get() || {}).value || 1) < 6) {
+  const tx = db.transaction(() => {
+    const upd = db.prepare(`UPDATE stores SET tile_bg = ?, tile_fg = ?, tile_font = ?, tile_text = ?
+      WHERE slug = ? AND tile_bg = '' AND tile_fg = '' AND tile_font = '' AND tile_text = ''`);
+    for (const [slug, [bg, fg, font, text]] of Object.entries(TILE_SEED)) upd.run(bg, fg, font, text, slug);
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '6')").run();
   });
   tx();
 }

@@ -1,25 +1,21 @@
 <%- include('partials/header') %>
-<div class="wrap">
-  <section class="home-section">
-    <h1 class="section__title home-title"><%= heading %></h1>
-    <% if (brands.length) { %>
-      <div class="brand-grid">
-        <% brands.forEach((s) => { %>
-          <a class="brand-tile" href="/stores/<%= s.slug %>">
-            <%- include('partials/store-icon', { s, size: 'md' }) %>
-            <span class="brand-tile__body">
-              <span class="brand-tile__name"><%= s.name %></span>
-              <span class="brand-tile__cats"><%= (s.categories || '').split(',').map((c) => CATEGORIES[c]).filter(Boolean).slice(0, 2).join(', ') %></span>
-            </span>
-          </a>
-        <% }) %>
-      </div>
-    <% } else { %>
-      <p class="muted">Скоро здесь появятся бренды. А пока посмотрите <a class="link" href="/stores">все магазины</a>.</p>
-    <% } %>
-    <div class="home-more"><a class="btn btn--ghost" href="<%= moreUrl %>">Ещё бренды</a></div>
-  </section>
+<section class="brand-wall" aria-labelledby="home-title">
+  <h1 class="visually-hidden" id="home-title"><%= heading %></h1>
+  <% if (brands.length) { %>
+    <div class="brand-grid" data-brand-grid>
+      <% brands.forEach((s) => { %>
+        <a class="brand-tile" href="/stores/<%= s.slug %>" style="<%= fmt.tileStyle(s) %>" data-font="<%= s.tile_font %>" aria-label="<%= s.name %>">
+          <span class="brand-tile__name" data-fit><%= s.tile_text || s.name %></span>
+        </a>
+      <% }) %>
+    </div>
+  <% } else { %>
+    <p class="muted">Скоро здесь появятся бренды. А пока посмотрите <a class="link" href="/stores">все магазины</a>.</p>
+  <% } %>
+  <div class="home-more"><a class="btn" href="<%= moreUrl %>">Ещё бренды <%- icon('arrow') %></a></div>
+</section>
 
+<div class="wrap">
   <section class="home-section">
     <form class="paste" method="post" action="/cart/add-link" novalidate data-link-form data-paste data-rate="<%= quote.rate %>" data-markup="<%= quote.markup %>">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>">

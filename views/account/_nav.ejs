@@ -1,0 +1,7 @@
+<nav class="side-nav" aria-label="Личный кабинет">
+  <a href="/account" class="<%= path.startsWith('/account') && !path.startsWith('/account/profile') ? 'is-active' : '' %>">Мои заказы</a>
+  <a href="/favorites" class="<%= path === '/favorites' ? 'is-active' : '' %>">Избранное</a>
+  <a href="/account/profile" class="<%= path === '/account/profile' ? 'is-active' : '' %>">Профиль</a>
+  <% if (user && user.role === 'admin') { %><a href="/admin">Админка</a><% } %>
+  <form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button type="submit">Выйти</button></form>
+</nav>

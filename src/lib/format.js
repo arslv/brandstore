@@ -84,6 +84,23 @@ function formatHomeTabs(tabs) {
   return HOME_TAB_KEYS.filter((k) => tabs[k]).map((k) => `${k}:${tabs[k]}`).join(',');
 }
 
+// Плитка бренда на главной: шрифт надписи. Фирменные шрифты брендов платные и закрытые, поэтому —
+// свободные шрифты похожего характера (public/fonts, OFL).
+const TILE_FONTS = {
+  '': 'Обычный, как на сайте',
+  didone: 'С засечками, контрастный — как у Zara, Gucci',
+  italic: 'Курсив с засечками',
+  geometric: 'Геометрический — как у Mango, COS',
+  heavy: 'Жирный — как у adidas, UNIQLO',
+};
+const HEX = /^#[0-9a-f]{6}$/i;
+const cleanHex = (v) => (HEX.test(String(v || '').trim()) ? String(v).trim().toUpperCase() : '');
+// CSS-переменные цвета плитки (только проверенные значения #RRGGBB)
+function tileStyle(store) {
+  const bg = cleanHex(store && store.tile_bg), fg = cleanHex(store && store.tile_fg);
+  return [bg && `--tile-bg:${bg}`, fg && `--tile-fg:${fg}`].filter(Boolean).join(';');
+}
+
 // Способы оплаты. yk — тип способа оплаты в ЮKassa (payment_method_data.type)
 const PAYMENT_METHODS = {
   card: { label: 'Банковская карта', hint: 'Мир, Visa, Mastercard российских банков', yk: 'bank_card', icon: 'card' },
@@ -112,4 +129,4 @@ const DELIVERY_METHODS = {
   pickup: 'В пункт выдачи',
 };
 
-module.exports = { rub, eur, dateTime, date, plural, ORDER_STATUSES, STATUS_FLOW, ITEM_STATUSES, CATEGORIES, BEAUTY_SUBCATS, GENDERS, HOME_TABS, HOME_TAB_KEYS, NO_RANK, parseHomeTabs, formatHomeTabs, DELIVERY_METHODS, PAYMENT_METHODS, PARSE_RESULTS, parseLabel };
+module.exports = { rub, eur, dateTime, date, plural, ORDER_STATUSES, STATUS_FLOW, ITEM_STATUSES, CATEGORIES, BEAUTY_SUBCATS, GENDERS, HOME_TABS, HOME_TAB_KEYS, NO_RANK, parseHomeTabs, formatHomeTabs, TILE_FONTS, cleanHex, tileStyle, DELIVERY_METHODS, PAYMENT_METHODS, PARSE_RESULTS, parseLabel };

@@ -19,7 +19,8 @@ Brand Store — интернет-сервис-посредник: покупат
   - логотип «brand store»: **brand — чёрный, store — бордовый** (#7D1D2D), точка-квадрат бордовая;
   - **белый фон, чёрные элементы**; бордовый — только логотип и скидки;
   - шапка (эскиз владельца, 24.10.2026): слева вкладки **Женщинам / Мужчинам / Детям / Для дома**, по центру логотип, справа компактный поиск и значки «Войти / Избранное / Корзина»; строки меню под шапкой нет (Новинки/Популярное с главной и из шапки убраны, страницы каталога остались — поиск ведёт туда);
-  - главная: сетка брендов выбранной вкладки (4 колонки, 16 штук, на телефоне 8) + «Ещё бренды» → /stores, ниже блок «Вставьте ссылку на товар» с кнопкой «Добавить в корзину»;
+  - главная: «стена брендов» почти во всю ширину экрана (4 колонки, 16 плиток, на телефоне 2×4), плитка = фон цвета подложки логотипа + название на всю плитку фирменным цветом; неполный последний ряд прячется, последний полный растворяется к кнопке «Ещё бренды» (по центру, поверх) → /stores; ниже блок «Вставьте ссылку на товар» с кнопкой «Добавить в корзину»;
+  - фирменные шрифты брендов не встраиваем (закрытые/платные) — свободные аналоги по характеру: Bodoni Moda (didone, italic) и Jost (geometric, heavy), OFL, в public/fonts; логотипы руками не рисуем;
   - верхняя чёрная полоска: «Ваши любимые бренды с доставкой до двери», справа «Заказ по ссылке», «Как это работает» (страница остаётся);
   - **заказывать можно только из магазинов списка** — ссылки с других сайтов не принимаются (и в форме, и на сервере), в FAQ ответ «Нет»;
   - страница «Бренды» (/stores) владельцу нравится — менять осторожно;
@@ -100,13 +101,13 @@ data/                        БД brandstore.db и outbox писем — не в
 Файл `data/brandstore.db` (SQLite, WAL). Таблицы: `users`, `stores`, `products`, `favorites`, `cart_items`, `orders`, `order_items`, `order_events`, `settings`, `sessions`.
 
 Важные поля:
-- `stores`: `slug, name, url` (PT-сайт), `region` (PT/EU), `link_prefix` (например `zara.com/pt` — по нему проверяется, что ссылка с португальской версии), `categories` (через запятую), `subcategories` (красота), `icon_domain`, `logo_path`, `is_popular` (= есть `all` в `home_tabs`), `home_tabs` (вкладки главной и место в сетке: `all:1,women:3,men` — `all` = главная без вкладки, без номера = 999, после пронумерованных по алфавиту; разбор — `parseHomeTabs`/`formatHomeTabs` в `format.js`), `is_active`; статистика парсера `parse_ok, parse_fail, parse_last, parse_last_at`; теги цены `sel_price, sel_old_price, sel_title, sel_image, sel_sizes`.
+- `stores`: `slug, name, url` (PT-сайт), `region` (PT/EU), `link_prefix` (например `zara.com/pt` — по нему проверяется, что ссылка с португальской версии), `categories` (через запятую), `subcategories` (красота), `icon_domain`, `logo_path`, `is_popular` (= есть `all` в `home_tabs`), `home_tabs` (вкладки главной и место в сетке: `all:1,women:3,men` — `all` = главная без вкладки, без номера = 999, после пронумерованных по алфавиту; разбор — `parseHomeTabs`/`formatHomeTabs` в `format.js`), `tile_bg`/`tile_fg` (#RRGGBB, проверяются `cleanHex`, в шаблон — через `fmt.tileStyle` как CSS-переменные), `tile_font` (`''|didone|italic|geometric|heavy`, `TILE_FONTS`), `tile_text` (надпись на плитке, пусто — `name`), `is_active`; статистика парсера `parse_ok, parse_fail, parse_last, parse_last_at`; теги цены `sel_price, sel_old_price, sel_title, sel_image, sel_sizes`.
 - `products` — товары витрины (цены в евро): `category, subcategory, gender, price_eur, old_price_eur, sizes, colors` (через запятую), `images` (JSON), `source_url, is_featured, is_demo`.
 - `cart_items` / `order_items`: `type` = `product` (из витрины) или `link` (по ссылке); `url, size, color, qty, price_eur, comment, region_ok, price_auto` (1 = цена взята с сайта автоматически). В `order_items` ещё `unit_price_rub, line_total_rub, item_status` (pending/available/unavailable/purchased).
 - `orders`: `number` (BS-100001), `status`, контакты и адрес, `subtotal_rub, delivery_rub, total_rub`, **зафиксированные `rate_eur` и `markup_pct`**, `payment_method, payment_id, payment_url, paid_at, tracking_number, manager_comment`.
 - `settings` (ключ-значение): `markup_pct`, `rate_mode` (auto/manual), `rate_eur_manual`, `rate_eur_auto`, `delivery_fee_rub`, `notify_email`, `eu_limit_eur` (300), `payment_mode` (demo/link/yookassa), `pay_flow` (after_check/instant), `payment_methods`, `shop_email/phone/telegram`, `payment_instructions`, `schema_version`.
 
-**Миграции.** Новые колонки — через `addColumn()` в `src/db.js` (идемпотентно). Изменения данных — блоком `if (schema_version < N) {...}` с повышением `schema_version` (сейчас **5**: v3 — теги Zara, v4 — теги размеров Mango и Bershka, v5 — `home_tabs` по эскизу владельца; «без вкладки» берётся из `is_popular` владельца). Никогда не ломай существующие базы: у владельца уже есть данные. После правок проверяй запуск и на новой, и на старой базе.
+**Миграции.** Новые колонки — через `addColumn()` в `src/db.js` (идемпотентно). Изменения данных — блоком `if (schema_version < N) {...}` с повышением `schema_version` (сейчас **6**: v3 — теги Zara, v4 — теги размеров Mango и Bershka, v5 — `home_tabs` по эскизу владельца; «без вкладки» берётся из `is_popular` владельца; v6 — цвета/шрифты/надписи плиток ~30 брендов, только где плитка не настроена). Никогда не ломай существующие базы: у владельца уже есть данные. После правок проверяй запуск и на новой, и на старой базе.
 
 **Обёртка `src/lib/sqlite.js`.** `node:sqlite` строже better-sqlite3: падает на лишних именованных параметрах и на `undefined`. Обёртка сама отбрасывает лишние ключи и превращает `undefined` в `null`. Строки возвращаются объектами с null-прототипом — это нормально. Предупреждение «SQLite is experimental» подавлено.
 
@@ -163,11 +164,16 @@ data/                        БД brandstore.db и outbox писем — не в
 
 ## Безопасность и подводные камни
 
+- **Кэш статики**: в production `express.static` отдаёт с `max-age=7d`, поэтому все CSS/JS подключаются с `?v=<хэш содержимого public/css + public/js>` (`assetV` в `src/middleware.js`, в шаблонах `head.ejs` и `admin/_footer.ejs`). Новый CSS/JS-файл — подключать так же, иначе после выкладки у посетителей будет старая версия (24.10.2026 так и было: новая разметка + старые стили = «список» вместо сетки).
 - **CSP** (helmet): `script-src 'self'` — инлайн-скрипты и `eval` запрещены. Весь JS — в `public/js/*.js`. Картинки — `self`, `data:`, `https:`.
 - **CSRF**: токен в поле `_csrf` формы или заголовке `X-CSRF-Token`; для `multipart/form-data` — в адресе формы `?_csrf=...` (multer разбирает тело после проверки). Вебхуки `/webhooks/*` без CSRF.
 - После входа сессия пересоздаётся (`regenerate`), гостевая корзина переносится в аккаунт; CSRF-токен после входа другой.
 - Загрузки: только картинки, до 6–8 МБ, в `public/uploads/` (не в git).
 - `express.static` раздаёт `public/` — не клади туда ничего секретного.
+
+## История: инцидент 24.10.2026
+
+Владелец распаковал архив изменений в неполную папку и сделал `git add -A` — коммит 7cac832 удалил с GitHub 81 файл, сервер забрал это обновление и упал (`Cannot find module './src/config'`). Поэтому изменения теперь отдаём **полным архивом проекта** (`git archive HEAD`) и просим перед push сверить `(git ls-files).Count` с числом файлов в коммите. На сервере удалённые файлы восстанавливаются из истории: `git diff --name-only --diff-filter=D <хороший> HEAD | xargs git checkout <хороший> --`.
 
 ## Что проверено, а что нет
 

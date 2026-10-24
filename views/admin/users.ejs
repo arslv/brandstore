@@ -1,0 +1,21 @@
+<%- include('_header') %>
+<div class="admin__head"><h1>Покупатели</h1></div>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Имя</th><th>Почта</th><th>Телефон</th><th>Город</th><th>Заказов</th><th class="num">Оплачено</th><th>Регистрация</th></tr></thead>
+    <tbody>
+      <% list.forEach((u) => { %>
+        <tr data-href="/admin/orders?q=<%= encodeURIComponent(u.email) %>">
+          <td><b><%= u.name || '—' %></b><% if (u.role === 'admin') { %> <span class="region">админ</span><% } %></td>
+          <td><a class="link" href="mailto:<%= u.email %>"><%= u.email %></a></td>
+          <td><%= u.phone %></td>
+          <td><%= u.city %></td>
+          <td><%= u.orders_count %></td>
+          <td class="num"><%= fmt.rub(u.paid_sum) %></td>
+          <td class="small muted"><%= fmt.date(u.created_at) %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+<%- include('_footer') %>

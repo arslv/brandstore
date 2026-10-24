@@ -100,6 +100,39 @@
       <label class="checkbox" style="margin-bottom:10px"><input type="checkbox" name="is_active" value="1" <%= store.is_active ? 'checked' : '' %>><span>Показывать на сайте</span></label>
       <button class="btn btn--block" type="submit"><%= store.id ? 'Сохранить' : 'Добавить магазин' %></button>
     </div>
+    <div class="panel" data-tile-editor>
+      <p class="panel__title">Плитка на главной</p>
+      <div class="brand-tile tile-preview" style="<%= fmt.tileStyle(store) %>" data-font="<%= store.tile_font || '' %>" data-tile-preview>
+        <span class="brand-tile__name" data-fit data-tile-preview-text><%= store.tile_text || store.name || 'Название' %></span>
+      </div>
+      <div class="field" style="margin-top:14px">
+        <label for="tile_text">Надпись <span class="muted">— как в логотипе, например MANGO</span></label>
+        <input class="input" id="tile_text" name="tile_text" maxlength="40" value="<%= store.tile_text || '' %>" placeholder="<%= store.name || '' %>" data-tile-text data-default="<%= store.name || '' %>">
+      </div>
+      <div>
+        <div class="field">
+          <label for="tile_bg">Фон</label>
+          <div class="color-field">
+            <input type="color" value="<%= fmt.cleanHex(store.tile_bg) || '#F5F5F5' %>" aria-label="Выбрать цвет фона" data-color-pick="tile_bg">
+            <input class="input" id="tile_bg" name="tile_bg" maxlength="7" placeholder="#F5F5F5" value="<%= fmt.cleanHex(store.tile_bg) %>" data-color-text="tile_bg">
+          </div>
+        </div>
+        <div class="field">
+          <label for="tile_fg">Цвет надписи</label>
+          <div class="color-field">
+            <input type="color" value="<%= fmt.cleanHex(store.tile_fg) || '#000000' %>" aria-label="Выбрать цвет надписи" data-color-pick="tile_fg">
+            <input class="input" id="tile_fg" name="tile_fg" maxlength="7" placeholder="#000000" value="<%= fmt.cleanHex(store.tile_fg) %>" data-color-text="tile_fg">
+          </div>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:0">
+        <label for="tile_font">Шрифт надписи</label>
+        <select class="select" id="tile_font" name="tile_font" data-tile-font>
+          <% Object.entries(fmt.TILE_FONTS).forEach(([k, label]) => { %><option value="<%= k %>" <%= (store.tile_font || '') === k ? 'selected' : '' %>><%= label %></option><% }) %>
+        </select>
+        <span class="field__hint">Цвета берите с подложки и надписи логотипа магазина. Пустое поле — серый фон и чёрная надпись.</span>
+      </div>
+    </div>
     <div class="panel">
       <p class="panel__title">На главной</p>
       <p class="small muted" style="margin:-8px 0 12px">На каких вкладках показывать магазин и каким по счёту. На вкладке видно 16 магазинов, на телефоне — первые 8. Без номера — после пронумерованных, по алфавиту.</p>

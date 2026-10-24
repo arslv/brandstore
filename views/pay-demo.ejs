@@ -1,0 +1,18 @@
+<%- include('partials/head') %>
+<main class="wrap">
+  <div class="gateway">
+    <div class="test-banner"><%- icon('alert') %><span>Тестовая страница оплаты. Деньги не списываются — так будет выглядеть переход к банку после подключения платёжного сервиса.</span></div>
+    <p class="muted small" style="margin:0">Получатель: Brand Store</p>
+    <p class="gateway__sum"><%= fmt.rub(order.total_rub) %></p>
+    <p class="muted" style="margin:0 0 16px">Оплата заказа <%= order.number %></p>
+    <div class="gateway__row"><span class="muted">Способ</span><b><%= methodLabel %></b></div>
+    <div class="gateway__row"><span class="muted">Номер платежа</span><span><%= order.payment_id %></span></div>
+    <form method="post" action="/pay/<%= order.id %>/demo" style="margin-top:22px;display:grid;gap:8px">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+      <button class="btn btn--block" type="submit" name="result" value="success"><%- icon('lock') %> Оплатить <%= fmt.rub(order.total_rub) %></button>
+      <button class="btn btn--ghost btn--block" type="submit" name="result" value="cancel">Отменить оплату</button>
+    </form>
+  </div>
+</main>
+</body>
+</html>

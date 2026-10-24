@@ -1,0 +1,6 @@
+<% const s = locals.s; %>
+<a class="store-tile" href="/stores/<%= s.slug %>">
+  <%- include('store-icon', { s }) %>
+  <span class="region region--<%= s.region %>" title="<%= s.region === 'PT' ? 'Португальская версия сайта' : 'Европейский сайт с доставкой в Португалию' %>"><%= s.region %></span>
+  <span class="store-tile__name"><%= s.name %></span>
+</a>

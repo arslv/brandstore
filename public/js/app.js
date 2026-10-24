@@ -446,6 +446,57 @@
     apply();
   }
 
+  // ---------- Плитки брендов: надпись на всю плитку, последний ряд растворяется ----------
+  // Подбираем самый крупный размер, при котором надпись помещается в плитку по ширине и высоте
+  // (слова не разрываются, длинные названия переносятся по словам).
+  function fitText(el) {
+    const box = el.parentElement;
+    const cs = getComputedStyle(box);
+    const w = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const h = box.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    if (w <= 0 || h <= 0) return;
+    const cap = h * 0.6; // короткие названия (COS, LEGO) не выше 60% плитки
+    let lo = 6, hi = Math.min(h, 400);
+    for (let i = 0; i < 14; i += 1) {
+      const mid = (lo + hi) / 2;
+      el.style.fontSize = mid + 'px';
+      if (el.scrollWidth <= el.clientWidth + 0.5 && el.scrollHeight <= h + 0.5) lo = mid; else hi = mid;
+    }
+    el.style.fontSize = Math.floor(Math.min(lo, cap) * 10) / 10 + 'px';
+  }
+  const fitAll = () => $$('[data-fit]').forEach(fitText);
+
+  const brandGrid = $('[data-brand-grid]');
+  const markFade = () => {
+    if (!brandGrid) return;
+    const all = $$('.brand-tile', brandGrid);
+    all.forEach((t) => t.classList.remove('is-fade', 'is-extra'));
+    let tiles = all.filter((t) => t.offsetParent !== null);
+    // Неполный последний ряд прячем (эти бренды — по кнопке «Ещё бренды»), растворяется последний полный
+    const tops = tiles.map((t) => t.offsetTop);
+    const cols = tops.filter((top) => top === tops[0]).length;
+    const inLast = tops.filter((top) => top === tops[tops.length - 1]).length;
+    if (tiles.length > cols && inLast < cols) {
+      tiles.slice(-inLast).forEach((t) => t.classList.add('is-extra'));
+      tiles = tiles.slice(0, -inLast);
+    }
+    const rows = new Set(tiles.map((t) => t.offsetTop)).size;
+    brandGrid.classList.toggle('has-fade', rows > 1);
+    if (rows > 1) {
+      const lastTop = tiles[tiles.length - 1].offsetTop;
+      tiles.filter((t) => t.offsetTop === lastTop).forEach((t) => t.classList.add('is-fade'));
+    }
+  };
+  if ($('[data-fit]')) {
+    let raf = 0;
+    const refresh = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { fitAll(); markFade(); }); };
+    refresh();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(refresh);
+    if (window.ResizeObserver) new ResizeObserver(refresh).observe(brandGrid || document.body);
+    else window.addEventListener('resize', refresh);
+    document.addEventListener('bs:fit', refresh); // превью плитки в админке
+  }
+
   // ---------- Ленты товаров на главной ----------
   $$('[data-rail]').forEach((rail) => {
     const track = $('[data-rail-track]', rail), prev = $('[data-rail-prev]', rail), next = $('[data-rail-next]', rail);

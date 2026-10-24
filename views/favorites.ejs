@@ -1,0 +1,19 @@
+<%- include('partials/header') %>
+<div class="wrap page">
+  <div class="account">
+    <%- include('account/_nav') %>
+    <div>
+      <h1 class="page-title">Избранное</h1>
+      <% if (!products.length) { %>
+        <p class="page-sub">Нажмите на сердечко на карточке товара, чтобы сохранить его здесь.</p>
+        <a class="btn" href="/catalog">Перейти в каталог</a>
+      <% } else { %>
+        <p class="page-sub"><%= products.length %> <%= fmt.plural(products.length, 'товар', 'товара', 'товаров') %></p>
+        <div class="products products--4">
+          <% products.forEach((p) => { %><%- include('partials/product-card', { p }) %><% }) %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</div>
+<%- include('partials/footer') %>
