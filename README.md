@@ -100,7 +100,19 @@ PARSER_BROWSER_WINDOW=on
 
 ## Размещение на сервере
 
-**Сервер:** VPS в России (данные покупателей по 152-ФЗ хранятся в РФ) — Timeweb Cloud, Selectel и т. п., Ubuntu 24.04, 2 ядра, 4 ГБ памяти. При создании вставьте открытый SSH-ключ из файла `~/.ssh/brandstore_ed25519.pub`.
+**Быстро, рядом с другими проектами на сервере** (ничего чужого не трогает: свой Node.js, свой порт от 3100, своя служба `brandstore`; nginx и системный Node не меняются). На сервере от root:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/arslv/brandstore/main/deploy/install.sh | bash
+```
+
+В конце скрипт покажет адрес сайта (`http://IP:3100`) и пароль админки. Обновить сайт до последней версии с GitHub — та же команда. Журнал: `journalctl -u brandstore -n 50`. Сменить пароль админа:
+
+```bash
+cd /opt/brandstore && sudo -u brandstore -H env PATH=/opt/brandstore/.node/bin:$PATH npm run admin-password
+```
+
+**Отдельный сервер только под сайт** (с nginx, HTTPS и доменом). **Сервер:** VPS в России (данные покупателей по 152-ФЗ хранятся в РФ) — Timeweb Cloud, Selectel и т. п., Ubuntu 24.04, 2 ядра, 4 ГБ памяти. При создании вставьте открытый SSH-ключ из файла `~/.ssh/brandstore_ed25519.pub`.
 
 В `.env` на своём компьютере допишите адрес сервера:
 
