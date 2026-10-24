@@ -1,0 +1,67 @@
+<%
+  // Форма «Вставьте ссылку на товар»: главная и страница магазина. Логика — public/js/app.js (form[data-link-form][data-paste]).
+  const _store = locals.pasteStore || null;
+  const _q = locals.quote;
+%>
+<form class="paste" method="post" action="/cart/add-link" novalidate data-link-form data-paste data-rate="<%= _q.rate %>" data-markup="<%= _q.markup %>">
+  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+  <input type="hidden" name="next" value="cart">
+  <input type="hidden" name="title" data-title>
+  <input type="hidden" name="image_url" data-image-url>
+  <input type="hidden" name="parsed_price" data-parsed-price>
+
+  <h2 class="paste__title">Вставьте ссылку на товар</h2>
+  <div class="paste__bar">
+    <div class="paste__field">
+      <label class="visually-hidden" for="paste-url">Ссылка на товар</label>
+      <input class="input paste__input" id="paste-url" name="url" type="url" inputmode="url" autocomplete="off" placeholder="<%= _store ? _store.url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') + '/…' : 'https://www.zara.com/pt/…' %>" data-url>
+      <span class="paste__ok" data-detect-ok hidden title="Магазин из списка"><%- icon('check') %></span>
+    </div>
+    <button class="btn paste__btn" type="submit" data-submit><%- icon('bag') %>Добавить в корзину</button>
+  </div>
+
+  <div class="detect" data-detect><span data-detect-icon></span><span class="detect__text" data-detect-text></span></div>
+  <div class="parse" data-parse hidden aria-live="polite">
+    <div class="parse__loading" data-parse-loading><span class="spinner" aria-hidden="true"></span>Смотрим цену…</div>
+    <div class="parse__card" data-parse-card hidden>
+      <img class="parse__img" data-parse-img alt="">
+      <div class="parse__body">
+        <div class="parse__title" data-parse-title></div>
+        <div class="parse__price"><b data-parse-rub></b> <span class="muted" data-parse-eur></span></div>
+        <div class="parse__note small muted" data-parse-note></div>
+      </div>
+    </div>
+    <div class="parse__fail small" data-parse-fail hidden></div>
+  </div>
+
+  <div class="paste__details" data-details hidden>
+    <div class="row">
+      <div class="field">
+        <label for="paste-size">Размер</label>
+        <input class="input" id="paste-size" name="size" maxlength="60" placeholder="M, 38…" data-size>
+        <div class="chips" data-size-chips></div>
+        <div class="chips" data-size-default>
+          <button type="button" class="chip" data-fill="size" data-value="Без размера">Без размера</button>
+          <button type="button" class="chip" data-fill="size" data-value="Один размер">Один размер</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="paste-color">Цвет</label>
+        <input class="input" id="paste-color" name="color" maxlength="60" placeholder="Как на сайте" data-color>
+        <div class="chips" data-color-chips></div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="paste-price">Цена, € <span class="paste__sum" data-sum></span></label>
+        <input class="input" id="paste-price" name="price_eur" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="49,99" data-price>
+      </div>
+      <div class="field">
+        <label for="paste-qty">Количество</label>
+        <input class="input" id="paste-qty" name="qty" type="number" min="1" max="20" value="1" data-qty>
+      </div>
+    </div>
+    <a class="link small" href="/order-link" data-full-form>+ Фото или комментарий</a>
+  </div>
+  <p class="field__error paste__error" data-form-error role="alert"></p>
+</form>

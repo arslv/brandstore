@@ -30,15 +30,13 @@ const PRODUCT_SELECT = `SELECT p.*, s.name AS store_name, s.slug AS store_slug, 
 
 // Главная: сетка брендов выбранной вкладки (Женщинам / Мужчинам / Детям / Для дома) и вставка ссылки
 const HOME_HEADINGS = { all: 'Бренды', women: 'Бренды для женщин', men: 'Бренды для мужчин', kids: 'Бренды для детей', home: 'Товары для дома' };
-const HOME_LIMIT = 16;
 router.get('/', (req, res) => {
   const g = HOME_TABS[req.query.g] ? req.query.g : '';
   const key = g || 'all';
   const brands = db.prepare("SELECT * FROM stores WHERE is_active = 1 AND home_tabs != ''").all()
     .map((s) => ({ ...s, rank: parseHomeTabs(s.home_tabs)[key] }))
     .filter((s) => s.rank)
-    .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name, 'ru', { sensitivity: 'base' }))
-    .slice(0, HOME_LIMIT);
+    .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name, 'ru', { sensitivity: 'base' }));
   res.render('home', {
     title: 'Brand Store — магазины Португалии с доставкой в Россию',
     brands, g, heading: HOME_HEADINGS[key], CATEGORIES,
@@ -112,9 +110,7 @@ router.get('/stores/:slug', (req, res, next) => {
   const store = db.prepare('SELECT * FROM stores WHERE slug = ? AND is_active = 1').get(req.params.slug);
   if (!store) return next();
   const products = decorate(db.prepare(`${PRODUCT_SELECT} WHERE p.is_active = 1 AND p.store_id = ? ORDER BY p.id DESC`).all(store.id));
-  const similar = db.prepare(`SELECT * FROM stores WHERE is_active = 1 AND id != ? AND (',' || categories || ',') LIKE ? ORDER BY RANDOM() LIMIT 8`)
-    .all(store.id, `%,${categoryList(store)[0] || ''},%`);
-  res.render('store', { title: store.name, store, cats: categoryList(store), subcats: (store.subcategories || '').split(',').filter(Boolean), products, similar, CATEGORIES, BEAUTY_SUBCATS });
+  res.render('store', { title: store.name, store, cats: categoryList(store), subcats: (store.subcategories || '').split(',').filter(Boolean), products, CATEGORIES, BEAUTY_SUBCATS, quote: pricing.quote() });
 });
 
 router.get('/order-link', (req, res) => {
@@ -131,7 +127,7 @@ router.get('/how-it-works', (req, res) => {
 router.get('/api/detect', (req, res) => {
   const url = String(req.query.url || '');
   const u = safeUrl(url);
-  if (!u) return res.json({ ok: false, error: 'Это не похоже на ссылку. Скопируйте адрес страницы товара из браузера.' });
+  if (!u) return res.json({ ok: false, error: 'Это не ссылка на товар' });
   const stores = db.prepare('SELECT * FROM stores WHERE is_active = 1').all();
   const found = findStoreForLink(url, stores);
   if (!found) return res.json({ ok: true, store: null });

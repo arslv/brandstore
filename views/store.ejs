@@ -2,49 +2,26 @@
 <div class="wrap page">
   <nav class="crumbs"><a href="/">Главная</a><span>/</span><a href="/stores">Бренды</a><span>/</span><span><%= store.name %></span></nav>
 
-  <div class="link-order">
+  <div class="store-page">
     <div>
-      <div style="display:flex;gap:20px;align-items:center;margin-bottom:20px">
+      <div class="store-page__head">
         <%- include('partials/store-icon', { s: store, size: 'lg' }) %>
         <div>
           <h1 class="page-title" style="margin:0"><%= store.name %></h1>
-          <p class="muted" style="margin:6px 0 0"><%= cats.map((c) => CATEGORIES[c]).filter(Boolean).join(' · ') %></p>
-          <% if (subcats.length) { %><p class="muted small" style="margin:4px 0 0"><%= subcats.map((c) => BEAUTY_SUBCATS[c]).filter(Boolean).join(', ') %></p><% } %>
+          <p class="muted" style="margin:6px 0 0"><%= (subcats.length ? subcats.map((c) => BEAUTY_SUBCATS[c]) : cats.map((c) => CATEGORIES[c])).filter(Boolean).join(' · ') %></p>
         </div>
       </div>
-      <% if (store.note) { %><p style="max-width:64ch"><%= store.note %></p><% } %>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
-        <a class="btn" href="<%= store.url %>" target="_blank" rel="noopener nofollow"><%- icon('external') %> Открыть сайт <%= store.name %></a>
-        <a class="btn btn--ghost" href="/order-link?store=<%= store.slug %>">Заказать по ссылке</a>
-      </div>
-      <p class="muted small" style="margin-top:14px">
-        <% if (store.region === 'PT') { %>Откроется португальская версия сайта — цены там в евро и подходят для заказа.<% } else { %>У магазина нет отдельной португальской версии — откроется европейский сайт, он доставляет в Португалию.<% } %>
-      </p>
+      <% if (store.note) { %><p class="store-page__note"><%= store.note %></p><% } %>
+      <a class="btn" href="<%= store.url %>" target="_blank" rel="noopener nofollow"><%- icon('external') %> Открыть сайт <%= store.name %></a>
     </div>
-    <div class="panel">
-      <p class="panel__title">Как заказать из <%= store.name %></p>
-      <ol class="steps">
-        <li><span><b>Откройте сайт магазина</b>Кнопка слева ведёт на нужную версию сайта.</span></li>
-        <li><span><b>Скопируйте ссылку на товар</b>Из адресной строки браузера на странице товара.</span></li>
-        <li><span><b>Вставьте её у нас</b>Укажите размер, цвет и цену в евро — покажем цену в рублях.</span></li>
-      </ol>
-    </div>
+    <%- include('partials/paste-form', { quote, pasteStore: store }) %>
   </div>
 
   <% if (products.length) { %>
   <section class="section">
-    <div class="section__head"><h2 class="section__title">Товары <%= store.name %> на витрине</h2></div>
+    <div class="section__head"><h2 class="section__title">Товары <%= store.name %></h2></div>
     <div class="products">
       <% products.forEach((p) => { %><%- include('partials/product-card', { p }) %><% }) %>
-    </div>
-  </section>
-  <% } %>
-
-  <% if (similar.length) { %>
-  <section class="section">
-    <div class="section__head"><h2 class="section__title">Похожие бренды</h2><a class="link" href="/stores">Все бренды</a></div>
-    <div class="stores-row">
-      <% similar.forEach((s) => { %><%- include('partials/store-tile', { s }) %><% }) %>
     </div>
   </section>
   <% } %>

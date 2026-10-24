@@ -67,13 +67,13 @@ router.post('/cart/add-link', upload.single('photo'), (req, res) => {
   const b = req.body;
   const errors = {};
   const u = safeUrl(b.url);
-  if (!u) errors.url = 'Вставьте ссылку на страницу товара.';
+  if (!u) errors.url = 'Вставьте ссылку на товар';
   const price = parseFloat(String(b.price_eur || '').replace(',', '.'));
-  if (!Number.isFinite(price) || price <= 0 || price > 100000) errors.price_eur = 'Укажите цену в евро, как на сайте магазина.';
+  if (!Number.isFinite(price) || price <= 0 || price > 100000) errors.price_eur = 'Укажите цену';
   const size = String(b.size || '').trim().slice(0, 60);
   const color = String(b.color || '').trim().slice(0, 60);
-  if (!size) errors.size = 'Укажите размер или выберите «Без размера».';
-  if (!color) errors.color = 'Укажите цвет, как он назван в магазине.';
+  if (!size) errors.size = 'Выберите размер';
+  if (!color) errors.color = 'Укажите цвет';
 
   // Заказываем только из магазинов нашего списка: магазин определяется по самой ссылке
   let store = null;
@@ -82,7 +82,7 @@ router.post('/cart/add-link', upload.single('photo'), (req, res) => {
     const all = db.prepare('SELECT * FROM stores WHERE is_active = 1').all();
     const found = findStoreForLink(u.href, all);
     if (found) { store = found.store; regionOk = found.regionOk ? 1 : 0; }
-    else errors.url = 'Этого магазина нет в нашем списке — заказать из него не получится. Выберите магазин на странице «Бренды».';
+    else errors.url = 'Этого магазина нет в нашем списке';
   }
 
   if (Object.keys(errors).length) {

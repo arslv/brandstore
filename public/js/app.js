@@ -121,19 +121,18 @@
   }
 
   // ---------- Заказ по ссылке: страница «Заказ по ссылке» и блок «Вставьте ссылку» на главной ----------
-  const ICON_OK = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 12 4 4 10-10"/></svg>';
   const ICON_WARN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4 2.5 20h19L12 4z"/><path d="M12 10v4M12 17v.5"/></svg>';
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const FAIL_TEXT = {
-    blocked: 'Сайт магазина не отдаёт данные автоматически. Введите цену вручную — как на странице товара.',
-    no_price: 'Не нашли цену на этой странице. Проверьте, что это страница товара, и введите цену вручную.',
-    not_found: 'Страница не открывается: возможно, товар сняли с продажи. Проверьте ссылку.',
-    timeout: 'Сайт магазина долго не отвечает. Введите цену вручную.',
-    network: 'Не получилось открыть сайт магазина. Введите цену вручную.',
-    redirected: 'Ссылка ведёт на другой сайт. Скопируйте ссылку прямо со страницы товара.',
-    rate_limit: 'Слишком много проверок подряд. Подождите минуту или введите цену вручную.',
+    blocked: 'Цену не получили — введите вручную',
+    no_price: 'Цену не нашли — введите вручную',
+    not_found: 'Страница не открывается — проверьте ссылку',
+    timeout: 'Сайт долго не отвечает — введите цену вручную',
+    network: 'Сайт не открылся — введите цену вручную',
+    redirected: 'Ссылка ведёт на другой сайт',
+    rate_limit: 'Много проверок подряд — введите цену вручную',
   };
-  const UNKNOWN_STORE = 'Этого магазина нет в нашем списке — заказать из него не получится. Выберите магазин на странице <a class="link" href="/stores">«Бренды»</a>.';
+  const UNKNOWN_STORE = 'Этого магазина нет в нашем <a class="link" href="/stores">списке</a>';
 
   $$('form[data-link-form]').forEach((linkForm) => {
     // На главной (data-paste) форма отправляется без перезагрузки, поля размера и цены появляются после вставки ссылки
@@ -147,6 +146,7 @@
     const price = $('[data-price]', linkForm), qty = $('[data-qty]', linkForm);
     const sum = $('[data-sum]', linkForm), sumNote = $('[data-sum-note]', linkForm);
     const details = $('[data-details]', linkForm);
+    const okMark = $('[data-detect-ok]', linkForm);
     const formError = $('[data-form-error]', linkForm);
     const fullForm = $('[data-full-form]', linkForm);
     const submits = $$('button[type="submit"]', linkForm);
@@ -168,8 +168,8 @@
       const eur = parseFloat(String(price.value).replace(',', '.')) || 0;
       const q = Math.max(1, parseInt(qty.value, 10) || 1);
       const rub = toRub(eur, rate, markup) * q;
-      if (sum) sum.textContent = rub ? fmtRub(rub) : '—';
-      if (sumNote) sumNote.textContent = rub ? (q > 1 ? q + ' шт. · ' : '') + 'без учёта доставки в Россию' : 'Введите цену в евро';
+      if (sum) sum.textContent = paste ? (rub ? '· ' + fmtRub(rub) : '') : (rub ? fmtRub(rub) : '—');
+      if (sumNote) sumNote.textContent = (q > 1 && rub ? q + ' шт. · ' : '') + 'без доставки';
     };
     price.addEventListener('input', updSum);
     qty.addEventListener('input', updSum);
@@ -233,9 +233,9 @@
       parseCard.hidden = true;
       parseFail.hidden = true;
       const loadingText = parseLoading.lastChild;
-      loadingText.textContent = 'Смотрим цену на сайте магазина…';
+      loadingText.textContent = 'Смотрим цену…';
       const slowTimer = setTimeout(() => {
-        if (seq === parseSeq) loadingText.textContent = 'Открываем страницу как обычный посетитель — это может занять до 20 секунд…';
+        if (seq === parseSeq) loadingText.textContent = 'Ещё немного, до 20 секунд…';
       }, 2500);
       const r = await fetch('/api/parse?url=' + encodeURIComponent(url), { headers: { Accept: 'application/json' } })
         .then((x) => x.json()).catch(() => ({ ok: false, reason: 'network' }));
@@ -247,7 +247,7 @@
       if (!r.ok || !r.priceEur) {
         parseFail.hidden = false;
         parseFail.textContent = r.ok && r.currency && r.currency !== 'EUR'
-          ? 'На странице цена в ' + r.currency + ' — откройте португальскую версию сайта или введите цену в евро вручную.'
+          ? 'Цена не в евро — нужна португальская версия сайта'
           : (FAIL_TEXT[r.reason] || FAIL_TEXT.no_price);
         if (r.ok) setIfAuto(titleInput, 'title', r.title);
         return;
@@ -270,10 +270,7 @@
       $('[data-parse-rub]', parseCard).textContent = fmtRub(r.priceRub || toRub(r.priceEur, rate, markup));
       $('[data-parse-eur]', parseCard).innerHTML = esc(String(r.priceEur).replace('.', ',')) + ' €'
         + (r.oldPriceEur ? ' <s>' + esc(String(r.oldPriceEur).replace('.', ',')) + ' €</s>' : '');
-      const notes = [paste ? 'Цена с сайта магазина. Выберите размер и цвет.' : 'Цена с сайта магазина — проверьте перед добавлением.'];
-      if (r.available === false) notes.unshift('Похоже, товара сейчас нет в наличии.');
-      if (r.image && !paste) notes.push('Фото подставим в заказ.');
-      $('[data-parse-note]', parseCard).textContent = notes.join(' ');
+      $('[data-parse-note]', parseCard).textContent = r.available === false ? 'Похоже, нет в наличии' : '';
 
       if (r.sizes && r.sizes.length) {
         renderChips(sizeChips, r.sizes, sizeInput);
@@ -287,7 +284,7 @@
     };
 
     const warn = (html) => {
-      detect.classList.add('detect--warn');
+      detect.classList.add('is-visible', 'detect--warn');
       detectIcon.innerHTML = ICON_WARN;
       detectText.innerHTML = html;
     };
@@ -301,14 +298,15 @@
       if (!v) {
         storeState = '';
         detect.classList.remove('is-visible');
+        if (okMark) okMark.hidden = true;
         resetParse();
         if (details) details.hidden = true;
         return;
       }
       const res = await fetch('/api/detect?url=' + encodeURIComponent(v)).then((r) => r.json()).catch(() => null);
       if (!res || urlInput.value.trim() !== v) return;
-      detect.classList.add('is-visible');
-      detect.classList.remove('detect--warn');
+      detect.classList.remove('is-visible', 'detect--warn');
+      if (okMark) okMark.hidden = true;
       resetParse();
       if (!res.ok) {
         storeState = 'bad';
@@ -319,14 +317,14 @@
         warn(UNKNOWN_STORE);
         setBlocked(true);
       } else if (res.regionOk) {
+        // Всё верно — просто галочка в поле
         storeState = 'ok';
-        detectIcon.innerHTML = ICON_OK;
-        detectText.innerHTML = '<b>' + esc(res.store.name) + '</b> — ' + (res.store.region === 'PT' ? 'португальская версия сайта, всё верно.' : 'европейский сайт магазина, всё верно.');
+        if (okMark) { okMark.hidden = false; okMark.title = res.store.name; }
         if (select) select.value = res.store.id;
         runParse(v);
       } else {
         storeState = 'other';
-        warn('Это не та версия сайта <b>' + esc(res.store.name) + '</b>. Откройте товар на <a class="link" target="_blank" rel="noopener" href="' + esc(res.store.url) + '">португальском сайте магазина</a> и скопируйте ссылку оттуда — цены там другие.');
+        warn('Нужна ссылка с <a class="link" target="_blank" rel="noopener" href="' + esc(res.store.url) + '">португальского сайта ' + esc(res.store.name) + '</a>');
         if (select) select.value = res.store.id;
       }
       if (details) details.hidden = storeState !== 'ok' && storeState !== 'other';
@@ -356,34 +354,34 @@
       }
       e.preventDefault();
       clearErrors();
-      if (!urlInput.value.trim()) { showError('Вставьте ссылку на страницу товара.', urlInput); return; }
+      if (!urlInput.value.trim()) { showError('Вставьте ссылку на товар', urlInput); return; }
       if (!storeState) { clearTimeout(timer); await runDetect(); }
       if (storeState === 'unknown' || storeState === 'bad') { urlInput.focus(); return; }
       const eur = parseFloat(String(price.value).replace(',', '.'));
       if (!(eur > 0)) {
-        if (parsing) showError('Секунду — смотрим цену на сайте магазина.');
-        else showError('Укажите цену в евро, как на сайте магазина.', price);
+        if (parsing) showError('Секунду, смотрим цену…');
+        else showError('Укажите цену', price);
         return;
       }
-      if (!sizeInput.value.trim()) { showError('Выберите размер или «Без размера».', sizeInput); return; }
-      if (!colorInput.value.trim()) { showError('Укажите цвет, как он назван на сайте магазина.', colorInput); return; }
+      if (!sizeInput.value.trim()) { showError('Выберите размер', sizeInput); return; }
+      if (!colorInput.value.trim()) { showError('Укажите цвет', colorInput); return; }
 
       setBlocked(true);
       const r = await post('/cart/add-link', Object.fromEntries(new FormData(linkForm))).catch(() => null);
       setBlocked(false);
       if (r && r.ok) {
         setCartCount(r.json.count);
-        toast('Товар в корзине. <a href="/cart">Перейти в корзину</a>');
+        toast('В корзине. <a href="/cart">Перейти</a>');
         linkForm.reset();
         titleInput.value = '';
         auto.price = auto.title = auto.color = '';
         runDetect();
         return;
       }
-      if (r && r.status === 403) { showError('Страница устарела. Обновите её и попробуйте ещё раз.'); return; }
+      if (r && r.status === 403) { showError('Обновите страницу и попробуйте ещё раз'); return; }
       const errs = (r && r.json && r.json.errors) || {};
       const key = Object.keys(errs)[0];
-      showError(key ? errs[key] : 'Не получилось добавить товар. Обновите страницу и попробуйте ещё раз.', key ? $('[name="' + key + '"]', linkForm) : null);
+      showError(key ? errs[key] : 'Не получилось добавить — обновите страницу', key ? $('[name="' + key + '"]', linkForm) : null);
     });
     updSum();
   });
@@ -466,30 +464,39 @@
   }
   const fitAll = () => $$('[data-fit]').forEach(fitText);
 
+  // Свёрнутая сетка: видно 3 ряда (на телефоне 4), последний растворяется. «Ещё бренды» раскрывает остальные
+  // плитки, после этого кнопка ведёт на страницу всех брендов.
   const brandGrid = $('[data-brand-grid]');
-  const markFade = () => {
-    if (!brandGrid) return;
-    const all = $$('.brand-tile', brandGrid);
-    all.forEach((t) => t.classList.remove('is-fade', 'is-extra'));
-    let tiles = all.filter((t) => t.offsetParent !== null);
-    // Неполный последний ряд прячем (эти бренды — по кнопке «Ещё бренды»), растворяется последний полный
-    const tops = tiles.map((t) => t.offsetTop);
-    const cols = tops.filter((top) => top === tops[0]).length;
-    const inLast = tops.filter((top) => top === tops[tops.length - 1]).length;
-    if (tiles.length > cols && inLast < cols) {
-      tiles.slice(-inLast).forEach((t) => t.classList.add('is-extra'));
-      tiles = tiles.slice(0, -inLast);
-    }
-    const rows = new Set(tiles.map((t) => t.offsetTop)).size;
-    brandGrid.classList.toggle('has-fade', rows > 1);
-    if (rows > 1) {
-      const lastTop = tiles[tiles.length - 1].offsetTop;
-      tiles.filter((t) => t.offsetTop === lastTop).forEach((t) => t.classList.add('is-fade'));
-    }
+  const moreBtn = $('[data-brands-more]');
+  let expanded = false;
+  const hiddenTiles = () => $$('.brand-tile', brandGrid).filter((t) => getComputedStyle(t).display === 'none');
+  const setMoreLabel = (text) => { const l = moreBtn && $('[data-label]', moreBtn); if (l) l.textContent = text; };
+  const syncCollapse = () => {
+    if (!brandGrid || expanded) return;
+    brandGrid.classList.add('is-collapsed');
+    const nothingHidden = hiddenTiles().length === 0;
+    brandGrid.classList.toggle('is-collapsed', !nothingHidden);
+    setMoreLabel(nothingHidden ? 'Все бренды' : 'Ещё бренды');
   };
+  if (brandGrid && moreBtn) {
+    moreBtn.addEventListener('click', (e) => {
+      if (expanded || !brandGrid.classList.contains('is-collapsed')) return; // ссылка на все бренды
+      e.preventDefault();
+      const reveal = hiddenTiles();
+      expanded = true;
+      brandGrid.classList.remove('is-collapsed');
+      reveal.forEach((t, i) => {
+        t.style.setProperty('--i', i);
+        t.classList.add('is-revealing');
+        t.addEventListener('animationend', () => t.classList.remove('is-revealing'), { once: true });
+      });
+      fitAll();
+      setMoreLabel('Все бренды');
+    });
+  }
   if ($('[data-fit]')) {
     let raf = 0;
-    const refresh = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { fitAll(); markFade(); }); };
+    const refresh = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { syncCollapse(); fitAll(); }); };
     refresh();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(refresh);
     if (window.ResizeObserver) new ResizeObserver(refresh).observe(brandGrid || document.body);

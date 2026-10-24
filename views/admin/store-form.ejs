@@ -113,8 +113,8 @@
         <div class="field">
           <label for="tile_bg">Фон</label>
           <div class="color-field">
-            <input type="color" value="<%= fmt.cleanHex(store.tile_bg) || '#F5F5F5' %>" aria-label="Выбрать цвет фона" data-color-pick="tile_bg">
-            <input class="input" id="tile_bg" name="tile_bg" maxlength="7" placeholder="#F5F5F5" value="<%= fmt.cleanHex(store.tile_bg) %>" data-color-text="tile_bg">
+            <input type="color" value="<%= fmt.cleanHex(store.tile_bg) || '#FFFFFF' %>" aria-label="Выбрать цвет фона" data-color-pick="tile_bg">
+            <input class="input" id="tile_bg" name="tile_bg" maxlength="7" placeholder="#FFFFFF" value="<%= fmt.cleanHex(store.tile_bg) %>" data-color-text="tile_bg">
           </div>
         </div>
         <div class="field">
@@ -130,7 +130,7 @@
         <select class="select" id="tile_font" name="tile_font" data-tile-font>
           <% Object.entries(fmt.TILE_FONTS).forEach(([k, label]) => { %><option value="<%= k %>" <%= (store.tile_font || '') === k ? 'selected' : '' %>><%= label %></option><% }) %>
         </select>
-        <span class="field__hint">Цвета берите с подложки и надписи логотипа магазина. Пустое поле — серый фон и чёрная надпись.</span>
+        <span class="field__hint">Цвета берите с подложки и надписи логотипа магазина. Пустое поле — белый фон и чёрная надпись.</span>
       </div>
     </div>
     <div class="panel">

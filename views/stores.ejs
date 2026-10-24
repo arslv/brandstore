@@ -2,7 +2,7 @@
 <div class="wrap page">
   <nav class="crumbs"><a href="/">Главная</a><span>/</span><span>Бренды</span></nav>
   <h1 class="page-title">Бренды</h1>
-  <p class="page-sub"><%= stores.length %> магазинов. Открываем португальские версии сайтов: цены там в евро, мы пересчитаем их в рубли. <span class="region region--PT">PT</span> — португальский сайт, <span class="region region--EU">EU</span> — европейский сайт с доставкой в Португалию.</p>
+  <p class="page-sub"><%= stores.length %> магазинов · <span class="region region--PT">PT</span> португальский сайт · <span class="region region--EU">EU</span> европейский</p>
 
   <div class="stores-toolbar" data-stores-filter style="flex-direction:column;align-items:stretch">
     <label class="visually-hidden" for="store-q">Найти магазин</label>
@@ -43,7 +43,7 @@
         </div>
       </section>
     <% }) %>
-    <p class="empty-hint" data-stores-empty hidden>Такого магазина нет в нашем списке. Заказать можно только из магазинов, которые есть на этой странице.</p>
+    <p class="empty-hint" data-stores-empty hidden>Такого магазина нет в нашем списке.</p>
   </div>
 </div>
 <%- include('partials/footer') %>

@@ -2,13 +2,15 @@
 <div class="wrap page">
   <nav class="crumbs"><a href="/">Главная</a><span>/</span><span>Заказ по ссылке</span></nav>
   <h1 class="page-title">Заказ по ссылке</h1>
-  <p class="page-sub">Откройте товар на португальском сайте магазина из <a class="link" href="/stores">нашего списка</a> и вставьте ссылку — цену, фото и размеры подтянем сами, если магазин их отдаёт. Если нет — заполните вручную.</p>
 
   <form class="link-order" method="post" action="/cart/add-link?_csrf=<%= csrfToken %>" enctype="multipart/form-data" data-link-form data-rate="<%= quote.rate %>" data-markup="<%= quote.markup %>">
     <div class="panel">
       <div class="field">
         <label for="url">Ссылка на товар</label>
-        <input class="input" id="url" name="url" type="url" inputmode="url" required placeholder="https://www.zara.com/pt/pt/…" value="<%= prefillUrl %>" data-url>
+        <div class="paste__field">
+          <input class="input" id="url" name="url" type="url" inputmode="url" required placeholder="https://www.zara.com/pt/…" value="<%= prefillUrl %>" data-url style="padding-right:48px">
+          <span class="paste__ok" data-detect-ok hidden title="Магазин из списка"><%- icon('check') %></span>
+        </div>
         <div class="detect" data-detect>
           <span data-detect-icon></span>
           <span class="detect__text" data-detect-text></span>
@@ -47,7 +49,6 @@
         <div class="field">
           <label for="price_eur">Цена на сайте, €</label>
           <input class="input" id="price_eur" name="price_eur" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="49,99" data-price>
-          <span class="field__hint">Цену со скидкой указывайте ту, что видите сейчас.</span>
         </div>
         <div class="field">
           <label for="qty">Количество</label>
@@ -86,15 +87,9 @@
     <aside class="panel panel--dark summary">
       <p class="small" style="margin:0;opacity:.75">Цена в рублях</p>
       <p class="summary-price" data-sum>—</p>
-      <p class="small" style="opacity:.75;margin:0 0 20px" data-sum-note>Введите цену в евро</p>
+      <p class="small" style="opacity:.75;margin:0 0 20px" data-sum-note>без доставки</p>
       <button class="btn btn--light btn--block" type="submit" name="next" value="cart">Добавить в корзину</button>
       <button class="btn btn--ghost btn--block" type="submit" name="next" value="more" style="margin-top:8px;color:var(--bg);border-color:rgba(255, 255, 255,.4)">Добавить и выбрать ещё</button>
-      <hr style="border:0;border-top:1px solid rgba(255, 255, 255,.15);margin:24px 0">
-      <ol class="steps small">
-        <li><span><b>Проверяем наличие</b>Менеджер сверит размер, цвет и цену в магазине.</span></li>
-        <li><span><b>Присылаем ссылку на оплату</b>Карта любого российского банка или СБП.</span></li>
-        <li><span><b>Выкупаем и отправляем</b>Трек-номер придёт на почту.</span></li>
-      </ol>
     </aside>
   </form>
 </div>
