@@ -81,6 +81,7 @@ PORT=$(grep '^PORT=' "$APP/.env" | cut -d= -f2)
 
 echo "== Зависимости"
 chown -R brandstore:brandstore "$APP" /home/brandstore
+cd "$APP"
 sudo -u brandstore -H env PATH="$PATH" npm ci --omit=dev --no-audit --no-fund --loglevel=error
 
 echo "== Автозапуск (служба brandstore)"
