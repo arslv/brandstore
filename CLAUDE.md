@@ -43,7 +43,11 @@ npm run icons            # скачать иконки магазинов в pub
 
 Двойным кликом: `start-windows.bat` / `start-mac.command` — ставят зависимости, Chromium, запускают сайт и открывают браузер.
 
-Вход в админку по умолчанию: `admin@brandstore.local` / `admin12345` (создаётся при первом запуске из `ADMIN_EMAIL`/`ADMIN_PASSWORD`; смены пароля в интерфейсе пока нет).
+Вход в админку по умолчанию: `admin@brandstore.local` / `admin12345` (создаётся при первом запуске из `ADMIN_EMAIL`/`ADMIN_PASSWORD`). Смена почты и пароля — `npm run admin-password` (`scripts/admin-password.js`, пароль не виден на экране, от 10 символов, закрывает входы админа); в интерфейсе смены пока нет.
+
+**Выкладка на сервер** — `npm run deploy` (`scripts/deploy.js`, с компьютера владельца по SSH; `DEPLOY_HOST` в локальном `.env`, ключ `~/.ssh/brandstore_ed25519` создан 24.10.2026). Выкладывается **последний коммит** (`git archive`), поэтому перед выкладкой — коммит. Флаги: `--setup` (`deploy/setup.sh`: Node 22, Google Chrome, Xvfb, nginx, certbot, swap 2 ГБ, ufw, cron-бэкап), `--data` (база через `VACUUM INTO` + uploads; не перезаписывает без `--force`), `--domain X --email Y` (certbot --nginx --redirect, SITE_URL), `--proxy URL`, `--check URL`, `--logs`. На сервере: `/opt/brandstore`, пользователь `brandstore`, службы `brandstore` и `brandstore-xvfb` (DISPLAY=:99), `.env` создаёт setup.sh (production, chrome + окно, случайный SESSION_SECRET). Значения в серверный `.env` пишет `deploy/set-env.js` (в base64, чтобы не ломались кавычки). `.gitattributes` держит LF у скриптов для Linux.
+
+`config.https` — сайт на https (по `SITE_URL`). Secure-куки и `upgrade-insecure-requests` включаются только при `NODE_ENV=production` **и** https: до подключения домена сервер работает по http://IP и вход не ломается.
 
 Локально `.env` не нужен. **Не ставь `NODE_ENV=production` при работе по http://localhost** — cookie станут secure и вход перестанет работать.
 
@@ -77,6 +81,9 @@ src/lib/session-store.js     сессии express-session в SQLite
 views/                       EJS-шаблоны (partials/, account/, admin/, auth/)
 public/                      css, js, fonts (Onest, Unbounded — свои файлы), img (демо-товары svg, favicon)
 scripts/check-link.js        npm run check
+scripts/deploy.js            npm run deploy — выкладка на сервер по SSH
+scripts/admin-password.js    npm run admin-password — смена почты/пароля админа
+deploy/                      setup.sh (первичная настройка Ubuntu), службы systemd, nginx.conf, backup.sh, set-env.js
 scripts/fetch-icons.js       npm run icons
 test/parser.test.js          тесты быстрого шага (браузер выключен)
 test/browser.test.js         тесты встроенного браузера на имитации защищённых магазинов
@@ -177,7 +184,7 @@ data/                        БД brandstore.db и outbox писем — не в
 1. Проверить цены по ссылке на реальных ссылках с компьютера владельца: Zara, Mango, H&M, Massimo Dutti, Adidas, Pull&Bear, Bershka, Sephora, Farfetch. По результатам — теги/обработчики. Владелец может присылать кусок HTML с ценой из «Просмотреть код».
 2. Смена пароля админа и восстановление пароля покупателя (письмом).
 3. Несколько менеджеров (роли), заметки к заказу.
-4. Хостинг: VPS (Timeweb/Selectel/Yandex Cloud), nginx + HTTPS, pm2/systemd, бэкап `data/` и `public/uploads/`; Chromium на сервере требует ~300–500 МБ RAM; прокси в ЕС для парсера, если нужно.
+4. Хостинг: скрипты готовы (`npm run deploy`), **на живом сервере ещё не запускались**. Ждём от владельца: VPS в РФ (Ubuntu 24.04, 4 ГБ) с ключом `brandstore_ed25519.pub`, домен, прокси в ЕС. Не проверено: Patchright + Google Chrome на Xvfb против Akamai через прокси. Перед открытием: сменить пароль админа, `payment_mode` с demo на link, оферта и политика ПДн. Бэкапы пока только на том же сервере.
 5. Подключить SMTP (Яндекс 360 и т. п.) и ЮKassa (боевые ключи, вебхук, чеки 54-ФЗ).
 6. Заменить демо-товары реальными (админка → Настройки → «Удалить демо-товары»).
 7. Юридические страницы: оферта, политика ПДн (152-ФЗ), согласие на обработку ПДн уже спрашивается при регистрации и оформлении.

@@ -1,0 +1,10 @@
+[Unit]
+Description=Brand Store: виртуальный экран для браузера (цены по ссылке)
+
+[Service]
+User=brandstore
+ExecStart=/usr/bin/Xvfb :99 -screen 0 1366x900x24 -nolisten tcp
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

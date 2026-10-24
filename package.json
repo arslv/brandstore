@@ -9,7 +9,9 @@
     "icons": "node scripts/fetch-icons.js",
     "test": "node --test test/parser.test.js test/browser.test.js",
     "check": "node scripts/check-link.js",
-    "browser": "playwright install --no-shell chromium"
+    "browser": "playwright install --no-shell chromium",
+    "admin-password": "node scripts/admin-password.js",
+    "deploy": "node scripts/deploy.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

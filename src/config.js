@@ -9,6 +9,8 @@ module.exports = {
   env: process.env.NODE_ENV || 'development',
   isProd: process.env.NODE_ENV === 'production',
   siteUrl: (process.env.SITE_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, ''),
+  // Куки «только https» и переход на https — только когда сайт и правда на https (до покупки домена сервер открывают по IP)
+  https: /^https:\/\//i.test(process.env.SITE_URL || ''),
   sessionSecret: process.env.SESSION_SECRET || 'dev-secret-change-me',
   dbFile: process.env.DB_FILE || path.join(root, 'data', 'brandstore.db'),
   uploadsDir: path.join(root, 'public', 'uploads'),

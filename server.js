@@ -23,7 +23,7 @@ app.use(helmet({
       'font-src': ["'self'"],
       'script-src': ["'self'"],
       'form-action': ["'self'", 'https://yoomoney.ru', 'https://*.yookassa.ru'],
-      'upgrade-insecure-requests': config.isProd ? [] : null,
+      'upgrade-insecure-requests': config.isProd && config.https ? [] : null,
     },
   },
   crossOriginEmbedderPolicy: false,
@@ -39,7 +39,7 @@ app.use(session({
   secret: config.sessionSecret,
   resave: false,
   saveUninitialized: false,
-  cookie: { httpOnly: true, sameSite: 'lax', secure: config.isProd, maxAge: 30 * 24 * 3600 * 1000 },
+  cookie: { httpOnly: true, sameSite: 'lax', secure: config.isProd && config.https, maxAge: 30 * 24 * 3600 * 1000 },
 }));
 
 app.use(loadUser);

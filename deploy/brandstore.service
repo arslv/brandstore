@@ -1,0 +1,16 @@
+[Unit]
+Description=Brand Store
+After=network.target brandstore-xvfb.service
+Requires=brandstore-xvfb.service
+
+[Service]
+User=brandstore
+WorkingDirectory=/opt/brandstore
+# Браузер для цен по ссылке открывается с окном на виртуальном экране
+Environment=DISPLAY=:99
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -100,14 +100,35 @@ PARSER_BROWSER_WINDOW=on
 
 ## Размещение на сервере
 
-Подойдёт любой VPS с Node.js 22.13+ (Timeweb Cloud, Selectel, Yandex Cloud и др.).
+**Сервер:** VPS в России (данные покупателей по 152-ФЗ хранятся в РФ) — Timeweb Cloud, Selectel и т. п., Ubuntu 24.04, 2 ядра, 4 ГБ памяти. При создании вставьте открытый SSH-ключ из файла `~/.ssh/brandstore_ed25519.pub`.
 
-```bash
-npm ci --omit=dev
-NODE_ENV=production npm start   # лучше под pm2 или systemd
+В `.env` на своём компьютере допишите адрес сервера:
+
+```
+DEPLOY_HOST=root@адрес-сервера
 ```
 
-Перед сайтом поставьте nginx с HTTPS (Let's Encrypt) и проксируйте на порт из `.env`. Резервная копия — файл `data/brandstore.db` и папка `public/uploads`.
+Всё остальное — одной командой с этого компьютера:
+
+| Команда | Что делает |
+|---|---|
+| `npm run deploy -- --setup` | первый раз: ставит Node.js, Google Chrome, виртуальный экран, nginx, автозапуск, ночные копии базы, брандмауэр |
+| `npm run deploy -- --data` | переносит базу и фото с этого компьютера (только если на сервере базы ещё нет) |
+| `npm run deploy` | выкладывает последнюю версию (последний коммит git) и перезапускает сайт |
+| `npm run deploy -- --domain brandstore.ru --email вы@почта.ru` | подключает домен и бесплатный HTTPS |
+| `npm run deploy -- --proxy "http://логин:пароль@адрес:порт"` | прокси в ЕС для цен по ссылке |
+| `npm run deploy -- --check "ссылка"` | проверяет цену по ссылке на сервере |
+| `npm run deploy -- --logs` | журнал сайта |
+
+**Смена пароля админа** (обязательно перед запуском — по умолчанию `admin12345`). На сервере:
+
+```bash
+ssh -t -i ~/.ssh/brandstore_ed25519 root@адрес-сервера "cd /opt/brandstore && sudo -u brandstore -H npm run admin-password"
+```
+
+На своём компьютере — просто `npm run admin-password`.
+
+Как устроено на сервере: сайт в `/opt/brandstore`, запускается службой `brandstore` (systemd) от отдельного пользователя; цены по ссылке — Google Chrome с окном на виртуальном экране (служба `brandstore-xvfb`); nginx принимает запросы на 80/443. Копии базы и фото — каждую ночь в `/var/backups/brandstore`, 14 дней. Это копии на том же сервере — раз в неделю стоит скачивать их к себе.
 
 ## Структура
 
