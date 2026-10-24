@@ -2,7 +2,7 @@
 <div class="wrap page">
   <nav class="crumbs"><a href="/">Главная</a><span>/</span><span>Заказ по ссылке</span></nav>
   <h1 class="page-title">Заказ по ссылке</h1>
-  <p class="page-sub">Откройте товар на португальском сайте магазина и вставьте ссылку — цену, фото и размеры подтянем сами, если магазин их отдаёт. Если нет — заполните вручную.</p>
+  <p class="page-sub">Откройте товар на португальском сайте магазина из <a class="link" href="/stores">нашего списка</a> и вставьте ссылку — цену, фото и размеры подтянем сами, если магазин их отдаёт. Если нет — заполните вручную.</p>
 
   <form class="link-order" method="post" action="/cart/add-link?_csrf=<%= csrfToken %>" enctype="multipart/form-data" data-link-form data-rate="<%= quote.rate %>" data-markup="<%= quote.markup %>">
     <div class="panel">

@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const pricing = require('../lib/pricing');
-const { CATEGORIES, BEAUTY_SUBCATS, GENDERS } = require('../lib/format');
+const { CATEGORIES, BEAUTY_SUBCATS, GENDERS, HOME_TABS, parseHomeTabs } = require('../lib/format');
 const rateLimit = require('express-rate-limit');
 const { findStoreForLink, safeUrl } = require('../lib/urls');
 const { parseProduct } = require('../lib/parser');
@@ -28,13 +28,23 @@ function decorate(products) {
 const PRODUCT_SELECT = `SELECT p.*, s.name AS store_name, s.slug AS store_slug, s.region AS store_region
   FROM products p LEFT JOIN stores s ON s.id = p.store_id`;
 
+// Главная: сетка брендов выбранной вкладки (Женщинам / Мужчинам / Детям / Для дома) и вставка ссылки
+const HOME_HEADINGS = { all: 'Бренды', women: 'Бренды для женщин', men: 'Бренды для мужчин', kids: 'Бренды для детей', home: 'Товары для дома' };
+const HOME_LIMIT = 16;
 router.get('/', (req, res) => {
-  const g = ['women', 'men'].includes(req.query.g) ? req.query.g : '';
-  const gWhere = g ? "AND (p.gender = @g OR p.gender = 'unisex')" : '';
-  const fresh = decorate(db.prepare(`${PRODUCT_SELECT} WHERE p.is_active = 1 ${gWhere} ORDER BY p.id DESC LIMIT 15`).all({ g }));
-  const featured = decorate(db.prepare(`${PRODUCT_SELECT} WHERE p.is_active = 1 AND p.is_featured = 1 ${gWhere} ORDER BY p.id DESC LIMIT 15`).all({ g }));
-  const popularStores = db.prepare('SELECT * FROM stores WHERE is_active = 1 AND is_popular = 1 ORDER BY name COLLATE NOCASE LIMIT 18').all();
-  res.render('home', { title: 'Brand Store — магазины Португалии с доставкой в Россию', featured, fresh, popularStores, g, CATEGORIES });
+  const g = HOME_TABS[req.query.g] ? req.query.g : '';
+  const key = g || 'all';
+  const brands = db.prepare("SELECT * FROM stores WHERE is_active = 1 AND home_tabs != ''").all()
+    .map((s) => ({ ...s, rank: parseHomeTabs(s.home_tabs)[key] }))
+    .filter((s) => s.rank)
+    .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name, 'ru', { sensitivity: 'base' }))
+    .slice(0, HOME_LIMIT);
+  res.render('home', {
+    title: 'Brand Store — магазины Португалии с доставкой в Россию',
+    brands, g, heading: HOME_HEADINGS[key], CATEGORIES,
+    moreUrl: g === 'kids' || g === 'home' ? `/stores?cat=${g}` : '/stores',
+    quote: pricing.quote(),
+  });
 });
 
 router.get('/catalog', (req, res) => {

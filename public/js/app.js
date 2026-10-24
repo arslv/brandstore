@@ -120,9 +120,24 @@
     });
   }
 
-  // ---------- Заказ по ссылке ----------
-  const linkForm = $('form[data-link-form]');
-  if (linkForm) {
+  // ---------- Заказ по ссылке: страница «Заказ по ссылке» и блок «Вставьте ссылку» на главной ----------
+  const ICON_OK = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 12 4 4 10-10"/></svg>';
+  const ICON_WARN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4 2.5 20h19L12 4z"/><path d="M12 10v4M12 17v.5"/></svg>';
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const FAIL_TEXT = {
+    blocked: 'Сайт магазина не отдаёт данные автоматически. Введите цену вручную — как на странице товара.',
+    no_price: 'Не нашли цену на этой странице. Проверьте, что это страница товара, и введите цену вручную.',
+    not_found: 'Страница не открывается: возможно, товар сняли с продажи. Проверьте ссылку.',
+    timeout: 'Сайт магазина долго не отвечает. Введите цену вручную.',
+    network: 'Не получилось открыть сайт магазина. Введите цену вручную.',
+    redirected: 'Ссылка ведёт на другой сайт. Скопируйте ссылку прямо со страницы товара.',
+    rate_limit: 'Слишком много проверок подряд. Подождите минуту или введите цену вручную.',
+  };
+  const UNKNOWN_STORE = 'Этого магазина нет в нашем списке — заказать из него не получится. Выберите магазин на странице <a class="link" href="/stores">«Бренды»</a>.';
+
+  $$('form[data-link-form]').forEach((linkForm) => {
+    // На главной (data-paste) форма отправляется без перезагрузки, поля размера и цены появляются после вставки ссылки
+    const paste = linkForm.hasAttribute('data-paste');
     const rate = parseFloat(linkForm.dataset.rate), markup = parseFloat(linkForm.dataset.markup);
     const urlInput = $('[data-url]', linkForm);
     const detect = $('[data-detect]', linkForm);
@@ -131,16 +146,30 @@
     const select = $('[data-store-select]', linkForm);
     const price = $('[data-price]', linkForm), qty = $('[data-qty]', linkForm);
     const sum = $('[data-sum]', linkForm), sumNote = $('[data-sum-note]', linkForm);
-    const ICON_OK = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m5 12 4 4 10-10"/></svg>';
-    const ICON_WARN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4 2.5 20h19L12 4z"/><path d="M12 10v4M12 17v.5"/></svg>';
-    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const details = $('[data-details]', linkForm);
+    const formError = $('[data-form-error]', linkForm);
+    const fullForm = $('[data-full-form]', linkForm);
+    const submits = $$('button[type="submit"]', linkForm);
+    // '' — ссылку ещё не проверяли, ok — магазин из списка, other — не та версия сайта, unknown — магазина нет в списке, bad — не ссылка
+    let storeState = '';
+    let parsing = false;
+
+    const setBlocked = (on) => submits.forEach((b) => { b.disabled = on; });
+    const clearErrors = () => {
+      if (formError) formError.textContent = '';
+      $$('.is-invalid', linkForm).forEach((el) => el.classList.remove('is-invalid'));
+    };
+    const showError = (msg, field) => {
+      if (formError) formError.textContent = msg;
+      if (field) { field.classList.add('is-invalid'); field.focus(); }
+    };
 
     const updSum = () => {
       const eur = parseFloat(String(price.value).replace(',', '.')) || 0;
       const q = Math.max(1, parseInt(qty.value, 10) || 1);
       const rub = toRub(eur, rate, markup) * q;
-      sum.textContent = rub ? fmtRub(rub) : '—';
-      sumNote.textContent = rub ? (q > 1 ? q + ' шт. · ' : '') + 'без учёта доставки в Россию' : 'Введите цену в евро';
+      if (sum) sum.textContent = rub ? fmtRub(rub) : '—';
+      if (sumNote) sumNote.textContent = rub ? (q > 1 ? q + ' шт. · ' : '') + 'без учёта доставки в Россию' : 'Введите цену в евро';
     };
     price.addEventListener('input', updSum);
     qty.addEventListener('input', updSum);
@@ -158,16 +187,6 @@
     const photoInput = $('#photo', linkForm);
     const auto = { price: '', title: '', color: '' };
     let parseSeq = 0;
-
-    const FAIL_TEXT = {
-      blocked: 'Сайт магазина не отдаёт данные автоматически. Введите цену вручную — как на странице товара.',
-      no_price: 'Не нашли цену на этой странице. Проверьте, что это страница товара, и введите цену вручную.',
-      not_found: 'Страница не открывается: возможно, товар сняли с продажи. Проверьте ссылку.',
-      timeout: 'Сайт магазина долго не отвечает. Введите цену вручную.',
-      network: 'Не получилось открыть сайт магазина. Введите цену вручную.',
-      redirected: 'Ссылка ведёт на другой сайт. Скопируйте ссылку прямо со страницы товара.',
-      rate_limit: 'Слишком много проверок подряд. Подождите минуту или введите цену вручную.',
-    };
 
     const setIfAuto = (input, key, value) => {
       if (!value) return;
@@ -188,6 +207,7 @@
         b.setAttribute('aria-pressed', input.value === it.name ? 'true' : 'false');
         b.addEventListener('click', () => {
           input.value = it.name;
+          input.classList.remove('is-invalid');
           $$('.chip', box).forEach((c) => c.setAttribute('aria-pressed', c === b ? 'true' : 'false'));
         });
         box.appendChild(b);
@@ -196,6 +216,7 @@
 
     const resetParse = () => {
       parseSeq += 1;
+      parsing = false;
       parseBox.hidden = true;
       sizeChips.innerHTML = '';
       colorChips.innerHTML = '';
@@ -206,6 +227,7 @@
 
     const runParse = async (url) => {
       const seq = ++parseSeq;
+      parsing = true;
       parseBox.hidden = false;
       parseLoading.hidden = false;
       parseCard.hidden = true;
@@ -219,6 +241,7 @@
         .then((x) => x.json()).catch(() => ({ ok: false, reason: 'network' }));
       clearTimeout(slowTimer);
       if (seq !== parseSeq) return;
+      parsing = false;
       parseLoading.hidden = true;
 
       if (!r.ok || !r.priceEur) {
@@ -235,6 +258,7 @@
       setIfAuto(titleInput, 'title', r.title);
       parsedPrice.value = String(r.priceEur);
       imageUrl.value = r.image || '';
+      price.classList.remove('is-invalid');
       updSum();
 
       parseCard.hidden = false;
@@ -246,9 +270,9 @@
       $('[data-parse-rub]', parseCard).textContent = fmtRub(r.priceRub || toRub(r.priceEur, rate, markup));
       $('[data-parse-eur]', parseCard).innerHTML = esc(String(r.priceEur).replace('.', ',')) + ' €'
         + (r.oldPriceEur ? ' <s>' + esc(String(r.oldPriceEur).replace('.', ',')) + ' €</s>' : '');
-      const notes = ['Цена с сайта магазина — проверьте перед добавлением.'];
+      const notes = [paste ? 'Цена с сайта магазина. Выберите размер и цвет.' : 'Цена с сайта магазина — проверьте перед добавлением.'];
       if (r.available === false) notes.unshift('Похоже, товара сейчас нет в наличии.');
-      if (r.image) notes.push('Фото подставим в заказ.');
+      if (r.image && !paste) notes.push('Фото подставим в заказ.');
       $('[data-parse-note]', parseCard).textContent = notes.join(' ');
 
       if (r.sizes && r.sizes.length) {
@@ -262,32 +286,56 @@
       }
     };
 
+    const warn = (html) => {
+      detect.classList.add('detect--warn');
+      detectIcon.innerHTML = ICON_WARN;
+      detectText.innerHTML = html;
+    };
+
     let timer;
     const runDetect = async () => {
       const v = urlInput.value.trim();
-      if (!v) { detect.classList.remove('is-visible'); resetParse(); return; }
+      clearErrors();
+      setBlocked(false);
+      if (fullForm) fullForm.href = '/order-link' + (v ? '?url=' + encodeURIComponent(v) : '');
+      if (!v) {
+        storeState = '';
+        detect.classList.remove('is-visible');
+        resetParse();
+        if (details) details.hidden = true;
+        return;
+      }
       const res = await fetch('/api/detect?url=' + encodeURIComponent(v)).then((r) => r.json()).catch(() => null);
-      if (!res) return;
+      if (!res || urlInput.value.trim() !== v) return;
       detect.classList.add('is-visible');
       detect.classList.remove('detect--warn');
       resetParse();
       if (!res.ok) {
-        detect.classList.add('detect--warn'); detectIcon.innerHTML = ICON_WARN; detectText.textContent = res.error;
+        storeState = 'bad';
+        warn(esc(res.error));
       } else if (!res.store) {
-        detect.classList.add('detect--warn'); detectIcon.innerHTML = ICON_WARN;
-        detectText.innerHTML = 'Этого магазина нет в нашем списке. Заказ всё равно можно оформить — менеджер проверит магазин.';
+        // Заказываем только из магазинов списка
+        storeState = 'unknown';
+        warn(UNKNOWN_STORE);
+        setBlocked(true);
       } else if (res.regionOk) {
+        storeState = 'ok';
         detectIcon.innerHTML = ICON_OK;
         detectText.innerHTML = '<b>' + esc(res.store.name) + '</b> — ' + (res.store.region === 'PT' ? 'португальская версия сайта, всё верно.' : 'европейский сайт магазина, всё верно.');
-        select.value = res.store.id;
+        if (select) select.value = res.store.id;
         runParse(v);
       } else {
-        detect.classList.add('detect--warn'); detectIcon.innerHTML = ICON_WARN;
-        detectText.innerHTML = 'Это не та версия сайта <b>' + esc(res.store.name) + '</b>. Откройте товар на <a class="link" target="_blank" rel="noopener" href="' + esc(res.store.url) + '">португальском сайте магазина</a> и скопируйте ссылку оттуда — цены там другие.';
-        select.value = res.store.id;
+        storeState = 'other';
+        warn('Это не та версия сайта <b>' + esc(res.store.name) + '</b>. Откройте товар на <a class="link" target="_blank" rel="noopener" href="' + esc(res.store.url) + '">португальском сайте магазина</a> и скопируйте ссылку оттуда — цены там другие.');
+        if (select) select.value = res.store.id;
       }
+      if (details) details.hidden = storeState !== 'ok' && storeState !== 'other';
     };
-    urlInput.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(runDetect, 500); });
+    urlInput.addEventListener('input', () => {
+      storeState = '';
+      clearTimeout(timer);
+      timer = setTimeout(runDetect, 500);
+    });
     if (urlInput.value) runDetect();
 
     // Если покупатель загрузил своё фото — оно важнее фото с сайта
@@ -296,10 +344,49 @@
     $$('[data-fill]', linkForm).forEach((chip) => chip.addEventListener('click', () => {
       const input = $('[name="' + chip.dataset.fill + '"]', linkForm);
       input.value = chip.dataset.value;
+      input.classList.remove('is-invalid');
       input.focus();
     }));
+    [sizeInput, colorInput, price].forEach((el) => el.addEventListener('input', () => el.classList.remove('is-invalid')));
+
+    linkForm.addEventListener('submit', async (e) => {
+      if (!paste) {
+        if (storeState === 'unknown') { e.preventDefault(); urlInput.focus(); }
+        return;
+      }
+      e.preventDefault();
+      clearErrors();
+      if (!urlInput.value.trim()) { showError('Вставьте ссылку на страницу товара.', urlInput); return; }
+      if (!storeState) { clearTimeout(timer); await runDetect(); }
+      if (storeState === 'unknown' || storeState === 'bad') { urlInput.focus(); return; }
+      const eur = parseFloat(String(price.value).replace(',', '.'));
+      if (!(eur > 0)) {
+        if (parsing) showError('Секунду — смотрим цену на сайте магазина.');
+        else showError('Укажите цену в евро, как на сайте магазина.', price);
+        return;
+      }
+      if (!sizeInput.value.trim()) { showError('Выберите размер или «Без размера».', sizeInput); return; }
+      if (!colorInput.value.trim()) { showError('Укажите цвет, как он назван на сайте магазина.', colorInput); return; }
+
+      setBlocked(true);
+      const r = await post('/cart/add-link', Object.fromEntries(new FormData(linkForm))).catch(() => null);
+      setBlocked(false);
+      if (r && r.ok) {
+        setCartCount(r.json.count);
+        toast('Товар в корзине. <a href="/cart">Перейти в корзину</a>');
+        linkForm.reset();
+        titleInput.value = '';
+        auto.price = auto.title = auto.color = '';
+        runDetect();
+        return;
+      }
+      if (r && r.status === 403) { showError('Страница устарела. Обновите её и попробуйте ещё раз.'); return; }
+      const errs = (r && r.json && r.json.errors) || {};
+      const key = Object.keys(errs)[0];
+      showError(key ? errs[key] : 'Не получилось добавить товар. Обновите страницу и попробуйте ещё раз.', key ? $('[name="' + key + '"]', linkForm) : null);
+    });
     updSum();
-  }
+  });
 
   // ---------- Список брендов: поиск, категории, подкатегории красоты ----------
   const filterBox = $('[data-stores-filter]');

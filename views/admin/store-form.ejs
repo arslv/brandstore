@@ -98,8 +98,18 @@
     <% } %>
     <div class="panel">
       <label class="checkbox" style="margin-bottom:10px"><input type="checkbox" name="is_active" value="1" <%= store.is_active ? 'checked' : '' %>><span>Показывать на сайте</span></label>
-      <label class="checkbox" style="margin-bottom:16px"><input type="checkbox" name="is_popular" value="1" <%= store.is_popular ? 'checked' : '' %>><span>Популярный — показывать на главной</span></label>
       <button class="btn btn--block" type="submit"><%= store.id ? 'Сохранить' : 'Добавить магазин' %></button>
+    </div>
+    <div class="panel">
+      <p class="panel__title">На главной</p>
+      <p class="small muted" style="margin:-8px 0 12px">На каких вкладках показывать магазин и каким по счёту. На вкладке видно 16 магазинов, на телефоне — первые 8. Без номера — после пронумерованных, по алфавиту.</p>
+      <% const _tabs = fmt.parseHomeTabs(store.home_tabs); %>
+      <% [['all', 'Главная без вкладки'], ...Object.entries(fmt.HOME_TABS)].forEach(([k, label]) => { %>
+        <div class="home-tab-row">
+          <label class="checkbox"><input type="checkbox" name="tab_<%= k %>" value="1" <%= _tabs[k] ? 'checked' : '' %>><span><%= label %></span></label>
+          <input class="input" type="number" name="rank_<%= k %>" min="1" max="99" placeholder="№" aria-label="Место: <%= label %>" value="<%= _tabs[k] && _tabs[k] < fmt.NO_RANK ? _tabs[k] : '' %>">
+        </div>
+      <% }) %>
     </div>
   </div>
 </form>

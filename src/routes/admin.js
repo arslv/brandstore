@@ -10,7 +10,8 @@ const pricing = require('../lib/pricing');
 const mailer = require('../lib/mailer');
 const yookassa = require('../lib/yookassa');
 const { refreshRate } = require('../lib/rates');
-const { ORDER_STATUSES, ITEM_STATUSES, CATEGORIES, BEAUTY_SUBCATS, GENDERS, DELIVERY_METHODS, PAYMENT_METHODS, PARSE_RESULTS, parseLabel } = require('../lib/format');
+const { ORDER_STATUSES, ITEM_STATUSES, CATEGORIES, BEAUTY_SUBCATS, GENDERS, DELIVERY_METHODS, PAYMENT_METHODS, PARSE_RESULTS, parseLabel,
+  HOME_TAB_KEYS, NO_RANK, parseHomeTabs, formatHomeTabs } = require('../lib/format');
 const payments = require('../services/payments');
 const { parseProduct, browserStatus } = require('../lib/parser');
 const { safeUrl, slugify, regionPrefix, rootDomain } = require('../lib/urls');
@@ -280,13 +281,15 @@ function readStore(req, existing = {}) {
     sel_title: String(b.sel_title || '').trim().slice(0, 500),
     sel_image: String(b.sel_image || '').trim().slice(0, 500),
     sel_sizes: String(b.sel_sizes || '').trim().slice(0, 500),
-    is_popular: b.is_popular ? 1 : 0,
+    home_tabs: formatHomeTabs(Object.fromEntries(HOME_TAB_KEYS.filter((k) => b[`tab_${k}`])
+      .map((k) => { const n = parseInt(b[`rank_${k}`], 10); return [k, n > 0 && n < NO_RANK ? n : NO_RANK]; }))),
     is_active: b.is_active ? 1 : 0,
     logo_path: b.remove_logo ? '' : (req.file ? `/uploads/logos/${req.file.filename}` : (existing.logo_path || '')),
   };
   const errors = {};
   if (!data.name) errors.name = 'Укажите название.';
   if (!u) errors.url = 'Укажите ссылку на португальскую версию сайта.';
+  data.is_popular = parseHomeTabs(data.home_tabs).all ? 1 : 0; // «Популярный» = виден на главной без вкладки
   return { data, errors };
 }
 
@@ -295,9 +298,9 @@ router.post('/stores', logoUpload.single('logo'), (req, res) => {
   if (Object.keys(errors).length) return storeForm(res, data, errors);
   let slug = slugify(data.name) || `store-${Date.now()}`;
   if (db.prepare('SELECT 1 FROM stores WHERE slug = ?').get(slug)) slug = `${slug}-${Date.now().toString(36)}`;
-  const info = db.prepare(`INSERT INTO stores (slug, name, url, region, link_prefix, categories, subcategories, icon_domain, note, is_popular, is_active, logo_path,
+  const info = db.prepare(`INSERT INTO stores (slug, name, url, region, link_prefix, categories, subcategories, icon_domain, note, is_popular, home_tabs, is_active, logo_path,
       sel_price, sel_old_price, sel_title, sel_image, sel_sizes)
-    VALUES (@slug, @name, @url, @region, @link_prefix, @categories, @subcategories, @icon_domain, @note, @is_popular, @is_active, @logo_path,
+    VALUES (@slug, @name, @url, @region, @link_prefix, @categories, @subcategories, @icon_domain, @note, @is_popular, @home_tabs, @is_active, @logo_path,
       @sel_price, @sel_old_price, @sel_title, @sel_image, @sel_sizes)`).run({ ...data, slug });
   req.flash('ok', 'Магазин добавлен.');
   res.redirect(`/admin/stores/${info.lastInsertRowid}/edit`);
@@ -309,7 +312,7 @@ router.post('/stores/:id', logoUpload.single('logo'), (req, res, next) => {
   const { data, errors } = readStore(req, s);
   if (Object.keys(errors).length) return storeForm(res, { ...data, id: s.id, slug: s.slug }, errors);
   db.prepare(`UPDATE stores SET name=@name, url=@url, region=@region, link_prefix=@link_prefix, categories=@categories, subcategories=@subcategories, icon_domain=@icon_domain,
-    note=@note, is_popular=@is_popular, is_active=@is_active, logo_path=@logo_path,
+    note=@note, is_popular=@is_popular, home_tabs=@home_tabs, is_active=@is_active, logo_path=@logo_path,
     sel_price=@sel_price, sel_old_price=@sel_old_price, sel_title=@sel_title, sel_image=@sel_image, sel_sizes=@sel_sizes WHERE id=@id`).run({ ...data, id: s.id });
   req.flash('ok', 'Магазин сохранён.');
   res.redirect(`/admin/stores/${s.id}/edit`);

@@ -63,6 +63,27 @@ const BEAUTY_SUBCATS = {
 
 const GENDERS = { women: 'Женщинам', men: 'Мужчинам', kids: 'Детям', unisex: 'Унисекс' };
 
+// Вкладки главной страницы. all — главная без выбранной вкладки.
+const HOME_TABS = { women: 'Женщинам', men: 'Мужчинам', kids: 'Детям', home: 'Для дома' };
+const HOME_TAB_KEYS = ['all', ...Object.keys(HOME_TABS)];
+
+// stores.home_tabs: «all:1,women:3» — на каких вкладках главной показывать магазин и каким по счёту.
+// Без номера — после пронумерованных, по алфавиту.
+const NO_RANK = 999;
+function parseHomeTabs(str) {
+  const out = {};
+  for (const part of String(str || '').split(',')) {
+    const [key, rank] = part.split(':').map((x) => x.trim());
+    if (!HOME_TAB_KEYS.includes(key)) continue;
+    const n = parseInt(rank, 10);
+    out[key] = n > 0 && n < NO_RANK ? n : NO_RANK;
+  }
+  return out;
+}
+function formatHomeTabs(tabs) {
+  return HOME_TAB_KEYS.filter((k) => tabs[k]).map((k) => `${k}:${tabs[k]}`).join(',');
+}
+
 // Способы оплаты. yk — тип способа оплаты в ЮKassa (payment_method_data.type)
 const PAYMENT_METHODS = {
   card: { label: 'Банковская карта', hint: 'Мир, Visa, Mastercard российских банков', yk: 'bank_card', icon: 'card' },
@@ -91,4 +112,4 @@ const DELIVERY_METHODS = {
   pickup: 'В пункт выдачи',
 };
 
-module.exports = { rub, eur, dateTime, date, plural, ORDER_STATUSES, STATUS_FLOW, ITEM_STATUSES, CATEGORIES, BEAUTY_SUBCATS, GENDERS, DELIVERY_METHODS, PAYMENT_METHODS, PARSE_RESULTS, parseLabel };
+module.exports = { rub, eur, dateTime, date, plural, ORDER_STATUSES, STATUS_FLOW, ITEM_STATUSES, CATEGORIES, BEAUTY_SUBCATS, GENDERS, HOME_TABS, HOME_TAB_KEYS, NO_RANK, parseHomeTabs, formatHomeTabs, DELIVERY_METHODS, PAYMENT_METHODS, PARSE_RESULTS, parseLabel };

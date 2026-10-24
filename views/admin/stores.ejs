@@ -27,7 +27,7 @@
             <% } else { %><span class="status status--muted">не работает</span><div class="muted" style="margin-top:4px"><%= fmt.parseLabel(s.parse_last) %></div><% } %>
           </td>
           <td><%= s.ordered %></td>
-          <td><%= s.is_active ? (s.is_popular ? 'Популярный' : 'Да') : 'Скрыт' %></td>
+          <td><% if (!s.is_active) { %>Скрыт<% } else { const _t = fmt.parseHomeTabs(s.home_tabs); const _names = Object.keys(_t).map((k) => k === 'all' ? 'без вкладки' : fmt.HOME_TABS[k]); %>Да<% if (_names.length) { %><div class="muted small">на главной: <%= _names.join(', ') %></div><% } } %></td>
         </tr>
       <% }) %>
     </tbody>

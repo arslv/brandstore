@@ -75,20 +75,21 @@ router.post('/cart/add-link', upload.single('photo'), (req, res) => {
   if (!size) errors.size = 'Укажите размер или выберите «Без размера».';
   if (!color) errors.color = 'Укажите цвет, как он назван в магазине.';
 
+  // Заказываем только из магазинов нашего списка: магазин определяется по самой ссылке
   let store = null;
   let regionOk = 1;
   if (u) {
     const all = db.prepare('SELECT * FROM stores WHERE is_active = 1').all();
     const found = findStoreForLink(u.href, all);
     if (found) { store = found.store; regionOk = found.regionOk ? 1 : 0; }
+    else errors.url = 'Этого магазина нет в нашем списке — заказать из него не получится. Выберите магазин на странице «Бренды».';
   }
-  if (!store && b.store_id) store = db.prepare('SELECT * FROM stores WHERE id = ?').get(b.store_id) || null;
 
   if (Object.keys(errors).length) {
     if (req.file) fs.unlink(req.file.path, () => {});
     if (wantsJson(req)) return res.status(400).json({ errors });
-    req.flash('error', Object.values(errors)[0]);
-    return res.redirect('/order-link');
+    req.flash('error', errors.url || Object.values(errors)[0]);
+    return res.redirect(u ? `/order-link?url=${encodeURIComponent(u.href)}` : '/order-link');
   }
 
   const image = req.file ? `/uploads/cart/${req.file.filename}` : (safeUrl(b.image_url) ? safeUrl(b.image_url).href : '');

@@ -18,10 +18,7 @@
       <div>
         <h4>Каталог</h4>
         <ul>
-          <li><a href="/?g=women">Женщинам</a></li>
-          <li><a href="/?g=men">Мужчинам</a></li>
-          <li><a href="/catalog?sort=new">Новинки</a></li>
-          <li><a href="/catalog?popular=1">Популярное</a></li>
+          <% Object.entries(fmt.HOME_TABS).forEach(([k, label]) => { %><li><a href="/?g=<%= k %>"><%= label %></a></li><% }) %>
         </ul>
       </div>
       <div>

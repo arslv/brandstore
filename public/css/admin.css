@@ -75,3 +75,8 @@
   .admin__main { padding: 20px 16px 48px; }
   .cat-checks { grid-template-columns: 1fr 1fr; }
 }
+
+/* Карточка магазина: вкладки главной и место в сетке */
+.home-tab-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
+.home-tab-row:first-of-type { border-top: 0; }
+.home-tab-row .input { width: 72px; min-height: 36px; padding: 6px 10px; }

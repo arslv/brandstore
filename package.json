@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "icons": "node scripts/fetch-icons.js",
-    "test": "node --test test/parser.test.js test/browser.test.js",
+    "test": "node --test test/parser.test.js test/browser.test.js test/home.test.js",
     "check": "node scripts/check-link.js",
     "browser": "playwright install --no-shell chromium",
     "admin-password": "node scripts/admin-password.js",

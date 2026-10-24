@@ -6,6 +6,7 @@ const config = require('./config');
 const storesData = require('./data/stores');
 const { beautySubcats } = storesData;
 const { slugify, regionPrefix, safeUrl, rootDomain } = require('./lib/urls');
+const { NO_RANK, formatHomeTabs } = require('./lib/format');
 
 fs.mkdirSync(path.dirname(config.dbFile), { recursive: true });
 const db = new Database(config.dbFile);
@@ -174,6 +175,8 @@ addColumn('cart_items', 'price_auto', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('order_items', 'price_auto', 'INTEGER NOT NULL DEFAULT 0');
 // v4: теги цены для каждого магазина (CSS-селекторы, «@атрибут» — взять атрибут, варианты через «||»)
 for (const col of ['sel_price', 'sel_old_price', 'sel_title', 'sel_image', 'sel_sizes']) addColumn('stores', col, "TEXT NOT NULL DEFAULT ''");
+// v5: вкладки главной, на которых виден магазин, и его место в сетке («all:1,women:3»)
+addColumn('stores', 'home_tabs', "TEXT NOT NULL DEFAULT ''");
 
 // ---------- Настройки по умолчанию ----------
 const DEFAULT_SETTINGS = {
@@ -323,6 +326,40 @@ if (Number((db.prepare("SELECT value FROM settings WHERE key = 'schema_version'"
   const upd = db.prepare("UPDATE stores SET sel_sizes = @sel_sizes WHERE slug = @slug AND sel_sizes = ''");
   for (const [slug, sel_sizes] of Object.entries(SIZE_SELECTORS)) upd.run({ slug, sel_sizes });
   db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '4')").run();
+}
+
+// ---------- Версия 5: главная — сетка брендов по вкладкам Женщинам / Мужчинам / Детям / Для дома ----------
+// Порядок — как в эскизе владельца (Zara, H&M, Mango…). Меняется в админке: «Магазины → магазин → На главной».
+// Трогаем только магазины, у которых вкладки ещё не заданы.
+const HOME_SEED = {
+  all: ['zara', 'h-and-m', 'mango', 'massimo-dutti', 'zara-home', 'cos', 'uniqlo', 'adidas', 'sephora', 'farfetch',
+    'el-corte-ingles', 'lacoste', 'veja', 'sezane', 'gucci', 'prada', 'notino', 'pandora'],
+  women: ['zara', 'h-and-m', 'mango', 'massimo-dutti', 'bershka', 'pull-and-bear', 'stradivarius', 'cos', 'sezane',
+    'and-other-stories', 'uniqlo', 'sephora', 'adidas', 'farfetch', 'el-corte-ingles', 'pandora'],
+  men: ['zara', 'h-and-m', 'mango', 'massimo-dutti', 'pull-and-bear', 'cos', 'uniqlo', 'adidas', 'lacoste', 'hugo-boss',
+    'ralph-lauren', 'levis', 'timberland', 'el-corte-ingles', 'farfetch', 'veja'],
+  kids: ['zara', 'h-and-m', 'c-and-a', 'kiabi', 'zippy', 'boboli', 'jacadi', 'chicco', 'prenatal', 'lego', 'beppi',
+    'dr-kid', 'the-baby-concept'],
+  home: ['zara-home', 'h-and-m', 'el-corte-ingles', 'arket', 'maisons-du-monde', 'vista-alegre', 'cutipol', 'castelbel',
+    'claus-porto', 'la-redoute', 'smeg', 'dyson', 'byredo'],
+};
+if (Number((db.prepare("SELECT value FROM settings WHERE key = 'schema_version'").get() || {}).value || 1) < 5) {
+  const tx = db.transaction(() => {
+    const tabs = {};
+    const add = (slug, key, rank) => { (tabs[slug] = tabs[slug] || {})[key] = rank; };
+    for (const [key, slugs] of Object.entries(HOME_SEED)) {
+      if (key !== 'all') slugs.forEach((slug, i) => add(slug, key, i + 1));
+    }
+    // Без вкладки — магазины с галочкой «Популярный» (владелец мог её менять), по порядку из списка
+    for (const { slug } of db.prepare('SELECT slug FROM stores WHERE is_popular = 1').all()) {
+      const i = HOME_SEED.all.indexOf(slug);
+      add(slug, 'all', i >= 0 ? i + 1 : NO_RANK);
+    }
+    const upd = db.prepare("UPDATE stores SET home_tabs = ? WHERE slug = ? AND home_tabs = ''");
+    for (const [slug, t] of Object.entries(tabs)) upd.run(formatHomeTabs(t), slug);
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '5')").run();
+  });
+  tx();
 }
 
 module.exports = db;
