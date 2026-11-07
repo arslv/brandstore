@@ -5,14 +5,8 @@
     <%- include('_nav') %>
     <div>
       <nav class="crumbs"><a href="/account">Мои заказы</a><span>/</span><span><%= order.number %></span></nav>
-      <% if (justPaid) { %>
-        <div class="paid-banner"><%- icon('check') %><div><b>Оплата прошла</b><div class="small" style="opacity:.8">Заказ оплачен<%= methodLabel ? ' (' + methodLabel + ')' : '' %>. Начинаем выкуп в магазинах — пришлём письмо, когда отправим посылку.</div></div></div>
-      <% } %>
-      <% if (isNew) { %>
-        <div class="panel panel--dark" style="margin-bottom:24px">
-          <p class="panel__title" style="margin-bottom:6px">Заказ <%= order.number %> оформлен</p>
-          <p style="margin:0;opacity:.85">Мы проверим наличие и цены в магазинах и пришлём ссылку на оплату на <b><%= order.email %></b>. Обычно это занимает до 24 часов.</p>
-        </div>
+      <% if (isNew && order.status === 'paid') { %>
+        <div class="paid-banner"><%- icon('check') %><div><b>Заказ оплачен</b><div class="small" style="opacity:.8">Трек-номер пришлём на <%= order.email %>, когда отправим посылку.</div></div></div>
       <% } %>
       <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
         <h1 class="page-title" style="margin:0">Заказ <%= order.number %></h1>
@@ -32,7 +26,7 @@
                   <span>Размер: <b><%= it.size || '—' %></b></span>
                   <span>Цвет: <b><%= it.color || '—' %></b></span>
                   <span>Кол-во: <b><%= it.qty %></b></span>
-                  <% if (it.item_status !== 'pending') { %><span><b><%= fmt.ITEM_STATUSES[it.item_status] %></b></span><% } %>
+                  <% if (it.item_status === 'unavailable') { %><span><b>Нет в наличии — деньги на балансе</b></span><% } %>
                 </div>
               </div>
               <div class="cart-item__side">
@@ -48,20 +42,22 @@
         <aside>
           <div class="panel summary" style="position:static">
             <div class="summary__row"><span>Товары</span><span><%= fmt.rub(order.subtotal_rub) %></span></div>
-            <div class="summary__row"><span>Доставка</span><span><%= order.delivery_rub ? fmt.rub(order.delivery_rub) : 'посчитает менеджер' %></span></div>
+            <div class="summary__row"><span>Доставка</span><span><%= order.delivery_rub ? fmt.rub(order.delivery_rub) : '—' %></span></div>
             <div class="summary__row summary__total"><span>Итого</span><span><%= fmt.rub(order.total_rub) %></span></div>
-            <% if (order.status === 'awaiting_payment') { %>
-              <% if (payMode !== 'link' || order.payment_url) { %>
-                <a class="btn btn--block" href="/pay/<%= order.id %>" style="margin-top:18px"><%- icon('card') %> Оплатить <%= fmt.rub(order.total_rub) %></a>
-                <p class="muted small" style="margin:10px 0 0">Картой, через СБП, SberPay, T-Pay или ЮMoney.</p>
+            <% if (order.refunded_rub) { %><div class="summary__row"><span>Вернули на баланс</span><span><%= fmt.rub(order.refunded_rub) %></span></div><% } %>
+            <% if (order.status === 'awaiting_payment') { const short = order.total_rub - balance; %>
+              <% if (short > 0) { %>
+                <div class="summary__row" style="margin-top:10px"><span>На балансе</span><span><%= fmt.rub(balance) %></span></div>
+                <a class="btn btn--block" href="/balance?amount=<%= Math.max(100, short) %>&next=/account/orders/<%= order.id %>" style="margin-top:14px"><%- icon('wallet') %> Пополнить на <%= fmt.rub(Math.max(100, short)) %></a>
               <% } else { %>
-                <p class="small" style="margin:16px 0 0"><%= shop.paymentInstructions || 'Ссылку на оплату пришлёт менеджер на ' + order.email + '.' %></p>
+                <form method="post" action="/account/orders/<%= order.id %>/pay">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+                  <button class="btn btn--block" type="submit" style="margin-top:18px">Оплатить с баланса</button>
+                </form>
               <% } %>
-            <% } else if (order.status === 'new') { %>
-              <p class="muted small" style="margin:16px 0 0">Оплатить можно будет после проверки наличия — пришлём письмо.</p>
             <% } %>
-            <% if (order.paid_at) { %><p class="small" style="margin:16px 0 0">Оплачено <%= fmt.dateTime(order.paid_at) %><%= methodLabel ? ' · ' + methodLabel : '' %></p><% } %>
-            <% if (order.tracking_number) { %><p style="margin:16px 0 0">Трек-номер: <b><%= order.tracking_number %></b></p><% } %>
+            <% if (order.paid_at) { %><p class="small muted" style="margin:16px 0 0">Оплачено <%= fmt.dateTime(order.paid_at) %><%= methodLabel ? ' · ' + methodLabel : '' %></p><% } %>
+            <% if (order.tracking_number) { %><p class="track" style="margin:16px 0 0">Трек-номер: <b><%= order.tracking_number %></b></p><% } %>
           </div>
 
           <div class="panel" style="margin-top:16px">
@@ -70,7 +66,7 @@
               <p class="muted" style="margin:0">Заказ отменён.</p>
             <% } else { %>
             <ul class="timeline">
-              <% fmt.STATUS_FLOW.forEach((key, i) => { const ev = order.events.filter((e) => e.status === key).pop(); %>
+              <% fmt.STATUS_FLOW.forEach((key, i) => { const ev = order.events.find((e) => e.status === key); %>
                 <li class="<%= i < flowIdx ? 'is-done' : (i === flowIdx ? 'is-current' : '') %>">
                   <b><%= fmt.ORDER_STATUSES[key].label %></b>
                   <% if (ev) { %><span class="muted small"><%= fmt.dateTime(ev.created_at) %></span><% } %>

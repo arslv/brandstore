@@ -19,22 +19,39 @@ const plural = (n, one, few, many) => {
   return many;
 };
 
+// Заказ оплачивается с баланса при оформлении (с 07.11.2026): оплачен → отправлен (трек) → доставлен.
+// legacy — статусы старой схемы («проверяем наличие», «выкуплен»): нужны только для подписей в истории заказов.
+// awaiting_payment остался у заказов, оформленных до перехода на баланс, — их можно оплатить с баланса.
 const ORDER_STATUSES = {
-  new: { label: 'Проверяем наличие', short: 'Новый', tone: 'info' },
+  new: { label: 'Проверяем наличие', short: 'Новый', tone: 'info', legacy: true },
   awaiting_payment: { label: 'Ожидает оплаты', short: 'Ждёт оплаты', tone: 'warn' },
   paid: { label: 'Оплачен', short: 'Оплачен', tone: 'ok' },
-  purchased: { label: 'Выкуплен в магазине', short: 'Выкуплен', tone: 'ok' },
-  shipped: { label: 'Отправлен в Россию', short: 'В пути', tone: 'ok' },
+  purchased: { label: 'Выкуплен в магазине', short: 'Выкуплен', tone: 'ok', legacy: true },
+  shipped: { label: 'Отправлен', short: 'В пути', tone: 'ok' },
   delivered: { label: 'Доставлен', short: 'Доставлен', tone: 'done' },
   cancelled: { label: 'Отменён', short: 'Отменён', tone: 'muted' },
 };
-const STATUS_FLOW = ['new', 'awaiting_payment', 'paid', 'purchased', 'shipped', 'delivered'];
+const STATUS_FLOW = ['paid', 'shipped', 'delivered'];
+// Какие статусы менеджер может выбрать в заказе (из текущего)
+const NEXT_STATUSES = {
+  awaiting_payment: ['awaiting_payment', 'cancelled'],
+  paid: ['paid', 'shipped', 'delivered', 'cancelled'],
+  shipped: ['shipped', 'delivered', 'paid'],
+  delivered: ['delivered', 'shipped'],
+};
 
+// Позиция заказа: pending — обычная, unavailable — закончилась до выкупа, деньги вернули на баланс
 const ITEM_STATUSES = {
-  pending: 'Проверяем',
-  available: 'В наличии',
+  pending: 'В заказе',
   unavailable: 'Нет в наличии',
-  purchased: 'Выкуплен',
+};
+
+// Операции баланса (balance_ops.type)
+const BALANCE_OPS = {
+  topup: 'Пополнение',
+  order: 'Оплата заказа',
+  refund: 'Возврат',
+  adjust: 'Корректировка',
 };
 
 const CATEGORIES = {
@@ -61,10 +78,19 @@ const BEAUTY_SUBCATS = {
   derma: 'Аптечная косметика',
 };
 
+// Редакция юридических документов (оферта, политика, согласие). Меняется вместе с текстами;
+// у пользователей и заказов сохраняется, с какой редакцией они согласились.
+const LEGAL_VERSION = '07.11.2026';
+const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// Реквизит в тексте документа: значение или заметная подсказка, что заполнить в админке
+function legalField(value, placeholder) {
+  return value ? escHtml(value) : `<span class="legal-missing">[${escHtml(placeholder)}]</span>`;
+}
+
 const GENDERS = { women: 'Женщинам', men: 'Мужчинам', kids: 'Детям', unisex: 'Унисекс' };
 
 // Вкладки главной страницы. all — главная без выбранной вкладки.
-const HOME_TABS = { women: 'Женщинам', men: 'Мужчинам', kids: 'Детям', home: 'Для дома' };
+const HOME_TABS = { women: 'Женщинам', men: 'Мужчинам', kids: 'Детям', home: 'Для дома', beauty: 'Косметика' };
 const HOME_TAB_KEYS = ['all', ...Object.keys(HOME_TABS)];
 
 // stores.home_tabs: «all:1,women:3» — на каких вкладках главной показывать магазин и каким по счёту.
@@ -129,4 +155,4 @@ const DELIVERY_METHODS = {
   pickup: 'В пункт выдачи',
 };
 
-module.exports = { rub, eur, dateTime, date, plural, ORDER_STATUSES, STATUS_FLOW, ITEM_STATUSES, CATEGORIES, BEAUTY_SUBCATS, GENDERS, HOME_TABS, HOME_TAB_KEYS, NO_RANK, parseHomeTabs, formatHomeTabs, TILE_FONTS, cleanHex, tileStyle, DELIVERY_METHODS, PAYMENT_METHODS, PARSE_RESULTS, parseLabel };
+module.exports = { LEGAL_VERSION, legalField, rub, eur, dateTime, date, plural, ORDER_STATUSES, STATUS_FLOW, NEXT_STATUSES, ITEM_STATUSES, BALANCE_OPS, CATEGORIES, BEAUTY_SUBCATS, GENDERS, HOME_TABS, HOME_TAB_KEYS, NO_RANK, parseHomeTabs, formatHomeTabs, TILE_FONTS, cleanHex, tileStyle, DELIVERY_METHODS, PAYMENT_METHODS, PARSE_RESULTS, parseLabel };

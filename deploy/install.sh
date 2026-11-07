@@ -87,7 +87,7 @@ sudo -u brandstore -H env PATH="$PATH" npm ci --omit=dev --no-audit --no-fund --
 echo "== Автозапуск (служба brandstore)"
 cat > /etc/systemd/system/brandstore.service <<EOF
 [Unit]
-Description=Brand Store (порт $PORT)
+Description=QLIC (порт $PORT)
 After=network.target
 
 [Service]

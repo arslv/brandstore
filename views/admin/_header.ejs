@@ -1,10 +1,10 @@
 <%- include('../partials/head', { admin: true }) %>
 <div class="admin">
   <aside class="admin__side">
-    <a href="/admin" class="logo">brand <span class="logo__store">store</span><i class="logo__dot"></i></a>
+    <a href="/admin" class="logo">QLIC<i class="logo__dot"></i></a>
     <nav class="admin__nav" aria-label="Админка">
       <% adminNav.forEach(([href, label]) => { const active = href === '/admin' ? (path === '/admin' || path === '/admin/') : (path === href || path.startsWith(href + '/')); %>
-        <a href="<%= href %>" class="<%= active ? 'is-active' : '' %>"><%= label %><% if (href === '/admin/orders' && newOrdersCount) { %><span class="pill"><%= newOrdersCount %></span><% } %></a>
+        <a href="<%= href %>" class="<%= active ? 'is-active' : '' %>"><%= label %><% if (href === '/admin/orders' && newOrdersCount) { %><span class="pill"><%= newOrdersCount %></span><% } %><% if (href === '/admin/balance' && pendingTopups) { %><span class="pill"><%= pendingTopups %></span><% } %></a>
       <% }) %>
     </nav>
     <div class="admin__side-foot">

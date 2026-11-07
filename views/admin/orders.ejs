@@ -9,7 +9,7 @@
 </div>
 <nav class="tabs">
   <a href="/admin/orders" class="<%= !status ? 'is-active' : '' %>">Все</a>
-  <% Object.entries(ORDER_STATUSES).forEach(([k, st]) => { %>
+  <% Object.entries(ORDER_STATUSES).filter(([k, st]) => !(st.legacy || k === 'awaiting_payment') || counts[k]).forEach(([k, st]) => { %>
     <a href="/admin/orders?status=<%= k %>" class="<%= status === k ? 'is-active' : '' %>"><%= st.short %><span><%= counts[k] || 0 %></span></a>
   <% }) %>
 </nav>
@@ -20,7 +20,7 @@
   <table class="table">
     <thead><tr><th>Заказ</th><th>Покупатель</th><th>Город</th><th>Товаров</th><th>Статус</th><th class="num">Сумма</th></tr></thead>
     <tbody>
-      <% list.forEach((o) => { const st = ORDER_STATUSES[o.status]; %>
+      <% list.forEach((o) => { const st = ORDER_STATUSES[o.status] || { tone: 'muted', short: o.status }; %>
         <tr data-href="/admin/orders/<%= o.id %>">
           <td><a href="/admin/orders/<%= o.id %>"><b><%= o.number %></b></a><div class="muted small"><%= fmt.dateTime(o.created_at) %></div></td>
           <td><%= o.customer_name %><div class="muted small"><%= o.email %> · <%= o.phone %></div></td>

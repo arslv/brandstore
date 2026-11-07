@@ -14,7 +14,7 @@ let DatabaseSync;
 try {
   ({ DatabaseSync } = require('node:sqlite'));
 } catch (e) {
-  console.error(`\nДля Brand Store нужен Node.js 22.13 или новее (сейчас ${process.version}).`);
+  console.error(`\nДля QLIC нужен Node.js 22.13 или новее (сейчас ${process.version}).`);
   console.error('Скачайте версию LTS с https://nodejs.org, установите и запустите сайт снова.\n');
   process.exit(1);
 }

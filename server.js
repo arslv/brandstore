@@ -65,6 +65,6 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(config.port, () => {
-  console.log(`Brand Store запущен: ${config.siteUrl} (порт ${config.port})`);
+  console.log(`QLIC запущен: ${config.siteUrl} (порт ${config.port})`);
   startRateUpdates();
 });

@@ -2,6 +2,7 @@ const db = require('../db');
 const pricing = require('../lib/pricing');
 const mailer = require('../lib/mailer');
 const { getCart } = require('./cart');
+const balance = require('./balance');
 
 function getOrder(id) {
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
@@ -12,21 +13,25 @@ function getOrder(id) {
   return order;
 }
 
-function createFromCart({ owner, userId, form, status = 'new' }) {
+// Оформление: заказ сразу оплачивается с баланса. Не хватает денег — исключение balance.InsufficientBalance (shortfall),
+// заказ не создаётся и корзина остаётся.
+function createFromCart({ owner, userId, form }) {
   const cart = getCart(owner);
   if (!cart.items.length) throw new Error('Корзина пуста');
   const q = cart.quote;
 
   const tx = db.transaction(() => {
+    const bal = balance.get(userId);
+    if (bal < cart.total) throw new balance.InsufficientBalance(bal, cart.total);
     const info = db.prepare(`INSERT INTO orders (number, user_id, status, customer_name, phone, email, city, address, delivery_method, comment,
-        subtotal_rub, delivery_rub, total_rub, rate_eur, markup_pct)
-      VALUES ('tmp', @userId, @status, @name, @phone, @email, @city, @address, @delivery, @comment, @subtotal, @deliveryRub, @total, @rate, @markup)`)
+        subtotal_rub, delivery_rub, total_rub, rate_eur, markup_pct, payment_method, paid_at)
+      VALUES ('tmp', @userId, 'paid', @name, @phone, @email, @city, @address, @delivery, @comment, @subtotal, @deliveryRub, @total, @rate, @markup, 'balance', datetime('now'))`)
       .run({
-        userId, status, ...form,
+        userId, ...form,
         subtotal: cart.subtotal, deliveryRub: cart.delivery, total: cart.total, rate: q.rate, markup: q.markup,
       });
     const orderId = info.lastInsertRowid;
-    const number = `BS-${100000 + Number(orderId)}`;
+    const number = `QL-${100000 + Number(orderId)}`; // до переименования в QLIC (07.11.2026) были BS-…
     db.prepare('UPDATE orders SET number = ? WHERE id = ?').run(number, orderId);
 
     const insItem = db.prepare(`INSERT INTO order_items (order_id, type, product_id, store_id, store_name, url, title, image_url, size, color, qty, price_eur, unit_price_rub, line_total_rub, comment, region_ok, price_auto)
@@ -39,16 +44,37 @@ function createFromCart({ owner, userId, form, status = 'new' }) {
         price_auto: it.type === 'product' ? 1 : (it.price_auto || 0),
       });
     }
-    db.prepare('INSERT INTO order_events (order_id, status, note) VALUES (?, ?, ?)').run(orderId, status, 'Заказ оформлен');
+    balance.charge(userId, orderId, cart.total);
+    db.prepare('INSERT INTO order_events (order_id, status, note) VALUES (?, ?, ?)').run(orderId, 'paid', 'Заказ оформлен и оплачен с баланса');
     db.prepare('DELETE FROM cart_items WHERE owner = ?').run(owner);
     return orderId;
   });
 
   const orderId = tx();
   const order = getOrder(orderId);
-  // Письма отправляем асинхронно, чтобы не задерживать покупателя
+  // Письма и чеки — асинхронно, чтобы не задерживать покупателя
   mailer.sendNewOrderToShop(order, order.items).catch((e) => console.error('[mail]', e));
   mailer.sendOrderConfirmation(order, order.items).catch((e) => console.error('[mail]', e));
+  balance.settleReceipts(order).catch((e) => console.error('[receipt]', e));
+  return order;
+}
+
+// Заказ, оформленный до перехода на баланс (статус «ожидает оплаты»), — оплатить с баланса из личного кабинета
+function payLegacy(orderId, userId) {
+  const tx = db.transaction(() => {
+    const order = db.prepare('SELECT * FROM orders WHERE id = ? AND user_id = ?').get(orderId, userId);
+    if (!order || order.status !== 'awaiting_payment') return null;
+    balance.charge(userId, order.id, order.total_rub);
+    db.prepare("UPDATE orders SET status = 'paid', payment_method = 'balance', paid_at = datetime('now'), updated_at = datetime('now') WHERE id = ?").run(order.id);
+    db.prepare('INSERT INTO order_events (order_id, status, note) VALUES (?, ?, ?)').run(order.id, 'paid', 'Оплачен с баланса');
+    return order.id;
+  });
+  const id = tx();
+  if (!id) return null;
+  const order = getOrder(id);
+  mailer.sendPaidToShop(order).catch((e) => console.error('[mail]', e));
+  mailer.sendStatusUpdate(order, 'Заказ оплачен. Выкупим товары и пришлём трек-номер, когда отправим посылку.').catch((e) => console.error('[mail]', e));
+  balance.settleReceipts(order).catch((e) => console.error('[receipt]', e));
   return order;
 }
 
@@ -68,6 +94,49 @@ function recalc(orderId) {
     .run(subtotal, subtotal, orderId);
 }
 
+// Товар закончился до выкупа: позиция «нет в наличии», её стоимость — на баланс. Если в заказе больше ничего нет —
+// заказ отменяется и на баланс возвращается остаток (доставка).
+function refundItem(orderId, itemId, adminId) {
+  const res = db.transaction(() => {
+    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    const item = db.prepare('SELECT * FROM order_items WHERE id = ? AND order_id = ?').get(itemId, orderId);
+    if (!order || !item || order.status !== 'paid' || item.item_status === 'unavailable') return null;
+    const amount = item.line_total_rub;
+    db.prepare("UPDATE order_items SET item_status = 'unavailable' WHERE id = ?").run(item.id);
+    recalc(order.id);
+    balance.refund(order.user_id, order.id, amount, `Нет в наличии: ${item.title || 'товар'}`, adminId);
+    db.prepare('INSERT INTO order_events (order_id, status, note) VALUES (?, ?, ?)')
+      .run(order.id, order.status, `Нет в наличии: ${item.title || 'товар'}. На баланс возвращено ${amount} ₽`);
+    const left = db.prepare("SELECT COUNT(*) AS n FROM order_items WHERE order_id = ? AND item_status != 'unavailable'").get(order.id).n;
+    return { order, item, amount, left };
+  })();
+  if (!res) return null;
+  if (res.left === 0) {
+    const c = cancel(orderId, { note: 'Товаров из заказа не осталось в наличии.', adminId, alsoRefunded: res.amount });
+    return { ...res, cancelled: true, amount: res.amount + (c ? c.refunded : 0) };
+  }
+  const fresh = getOrder(orderId);
+  mailer.sendItemRefunded(fresh, res.item, res.amount).catch((e) => console.error('[mail]', e));
+  return res;
+}
+
+// Отмена заказа. Оплаченный — всё, что осталось от оплаты, возвращается на баланс.
+// alsoRefunded — сколько уже вернули по заказу этим же действием (для текста письма)
+function cancel(orderId, { note = '', notify = true, adminId = null, alsoRefunded = 0 } = {}) {
+  const res = db.transaction(() => {
+    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    if (!order || order.status === 'cancelled') return null;
+    const amount = order.paid_at ? order.total_rub : 0;
+    if (amount > 0) balance.refund(order.user_id, order.id, amount, 'Отмена заказа', adminId);
+    return { refunded: amount && order.user_id ? amount : 0 };
+  })();
+  if (!res) return null;
+  const back = res.refunded + alsoRefunded;
+  const msg = [note, back ? `${back.toLocaleString('ru-RU')} ₽ вернули на баланс.` : ''].filter(Boolean).join(' ');
+  setStatus(orderId, 'cancelled', { note: msg, notify });
+  return res;
+}
+
 function setStatus(orderId, status, { note = '', notify = true } = {}) {
   db.prepare("UPDATE orders SET status = ?, updated_at = datetime('now') WHERE id = ?").run(status, orderId);
   if (status === 'paid') db.prepare("UPDATE orders SET paid_at = COALESCE(paid_at, datetime('now')) WHERE id = ?").run(orderId);
@@ -78,4 +147,4 @@ function setStatus(orderId, status, { note = '', notify = true } = {}) {
   }
 }
 
-module.exports = { getOrder, createFromCart, recalc, setStatus };
+module.exports = { getOrder, createFromCart, payLegacy, recalc, refundItem, cancel, setStatus };

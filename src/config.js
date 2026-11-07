@@ -27,7 +27,7 @@ module.exports = {
     secure: (process.env.SMTP_SECURE || 'true') === 'true',
     user: process.env.SMTP_USER || '',
     pass: process.env.SMTP_PASS || '',
-    from: process.env.MAIL_FROM || 'Brand Store <no-reply@brandstore.local>',
+    from: process.env.MAIL_FROM || 'QLIC <no-reply@brandstore.local>',
     notifyTo: process.env.ORDER_NOTIFY_EMAIL || '',
   },
 

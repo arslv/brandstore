@@ -62,12 +62,12 @@ function frame(title, body) {
   return `<!doctype html><html><body style="margin:0;background:${C.bg};font-family:Arial,Helvetica,sans-serif;color:${C.ink}">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:${C.bg};padding:24px 0"><tr><td align="center">
   <table width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%;background:#FFFFFF;border-radius:12px;overflow:hidden">
-    <tr><td style="background:#FFFFFF;padding:18px 28px;border-bottom:1px solid ${C.line};font-size:20px;font-weight:bold;letter-spacing:-0.3px"><span style="color:${C.ink}">brand</span> <span style="color:${C.accent}">store</span></td></tr>
+    <tr><td style="background:#FFFFFF;padding:18px 28px;border-bottom:1px solid ${C.line};font-size:20px;font-weight:bold;letter-spacing:-0.3px"><span style="color:${C.ink};font-family:'Unbounded','Arial Black',Arial,sans-serif;font-weight:700;letter-spacing:-0.5px">QLIC</span><span style="color:${C.accent}">.</span></td></tr>
     <tr><td style="padding:28px">
       <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3">${esc(title)}</h1>
       ${body}
     </td></tr>
-    <tr><td style="padding:16px 28px;border-top:1px solid ${C.line};color:${C.muted};font-size:12px">Brand Store — покупки в магазинах Португалии с доставкой в Россию</td></tr>
+    <tr><td style="padding:16px 28px;border-top:1px solid ${C.line};color:${C.muted};font-size:12px">QLIC — покупки в магазинах Португалии с доставкой в Россию</td></tr>
   </table></td></tr></table></body></html>`;
 }
 
@@ -93,7 +93,7 @@ function itemsTable(items, { showLinks = true } = {}) {
 function totals(order, { forShop = false } = {}) {
   return `<table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;margin-top:12px">
     <tr><td>Товары</td><td align="right">${rub(order.subtotal_rub)}</td></tr>
-    <tr><td>Доставка</td><td align="right">${order.delivery_rub ? rub(order.delivery_rub) : 'рассчитает менеджер'}</td></tr>
+    <tr><td>Доставка</td><td align="right">${order.delivery_rub ? rub(order.delivery_rub) : '—'}</td></tr>
     <tr><td style="font-size:16px;font-weight:bold;padding-top:6px">Итого</td><td align="right" style="font-size:16px;font-weight:bold;padding-top:6px">${rub(order.total_rub)}</td></tr>
   </table>
   ${forShop ? `<p style="color:${C.muted};font-size:12px;margin-top:8px">Курс в заказе: 1 € = ${Number(order.rate_eur).toFixed(2)} ₽, наценка ${order.markup_pct}%.</p>` : ''}`;
@@ -105,6 +105,7 @@ function button(href, text) {
 
 async function sendNewOrderToShop(order, items) {
   const html = frame(`Новый заказ ${order.number}`, `
+    <p style="margin:0 0 12px"><b>Оплачен с баланса.</b> Можно выкупать.</p>
     <p style="margin:0 0 12px">${esc(order.customer_name)} · <a href="tel:${esc(order.phone)}" style="color:${C.ink}">${esc(order.phone)}</a> · <a href="mailto:${esc(order.email)}" style="color:${C.ink}">${esc(order.email)}</a></p>
     <p style="margin:0 0 16px;color:${C.muted};font-size:14px">${esc(order.city)}, ${esc(order.address)} · ${esc(DELIVERY_METHODS[order.delivery_method] || order.delivery_method)}</p>
     ${order.comment ? `<p style="background:${C.bg};padding:10px 12px;border-radius:8px;font-size:14px">Комментарий: ${esc(order.comment)}</p>` : ''}
@@ -112,26 +113,23 @@ async function sendNewOrderToShop(order, items) {
     ${totals(order, { forShop: true })}
     ${button(`${config.siteUrl}/admin/orders/${order.id}`, 'Открыть заказ в админке')}
   `);
-  return sendMail({ to: notifyAddress(), subject: `Новый заказ ${order.number} на ${rub(order.total_rub)}`, html, replyTo: order.email });
+  return sendMail({ to: notifyAddress(), subject: `Новый заказ ${order.number} на ${rub(order.total_rub)} — оплачен`, html, replyTo: order.email });
 }
 
 async function sendOrderConfirmation(order, items) {
-  const intro = order.status === 'awaiting_payment'
-    ? 'Спасибо! Если оплата не завершилась, оплатить заказ можно в личном кабинете. После оплаты выкупим товары в магазинах.'
-    : 'Спасибо! Мы проверим наличие, размеры и цены в магазинах и пришлём письмо, когда заказ можно будет оплатить. Обычно это занимает до 24 часов.';
-  const html = frame(`Заказ ${order.number} принят`, `
-    <p style="margin:0 0 16px">${intro}</p>
+  const html = frame(`Заказ ${order.number} оплачен`, `
+    <p style="margin:0 0 16px">Спасибо! Заказ оплачен с баланса. Выкупим товары в магазинах и пришлём трек-номер, когда отправим посылку.</p>
     ${itemsTable(items, { showLinks: false })}
     ${totals(order)}
     ${button(`${config.siteUrl}/account/orders/${order.id}`, 'Посмотреть заказ')}
   `);
-  return sendMail({ to: order.email, subject: `Заказ ${order.number} принят`, html });
+  return sendMail({ to: order.email, subject: `Заказ ${order.number} оплачен`, html });
 }
 
 async function sendStatusUpdate(order, note) {
   const st = ORDER_STATUSES[order.status] || { label: order.status };
   const payBlock = order.status === 'awaiting_payment'
-    ? `<p style="margin:12px 0 0">Сумма к оплате: <b>${rub(order.total_rub)}</b></p>${button(`${config.siteUrl}/account/orders/${order.id}`, 'Перейти к оплате')}`
+    ? `<p style="margin:12px 0 0">Сумма к оплате: <b>${rub(order.total_rub)}</b> — с баланса в личном кабинете.</p>${button(`${config.siteUrl}/account/orders/${order.id}`, 'Перейти к оплате')}`
     : button(`${config.siteUrl}/account/orders/${order.id}`, 'Посмотреть заказ');
   const html = frame(`Заказ ${order.number}: ${st.label.toLowerCase()}`, `
     ${note ? `<p style="margin:0 0 12px">${esc(note)}</p>` : ''}
@@ -145,16 +143,36 @@ async function sendPaidToShop(order) {
   const method = (PAYMENT_METHODS[order.payment_method] || {}).label || '—';
   const html = frame(`Заказ ${order.number} оплачен`, `
     <p style="margin:0 0 8px">Сумма: <b>${rub(order.total_rub)}</b></p>
-    <p style="margin:0 0 8px">Способ оплаты: ${esc(method)}${order.payment_id && order.payment_id.startsWith('demo_') ? ' (тестовый режим)' : ''}</p>
+    <p style="margin:0 0 8px">Способ оплаты: ${order.payment_method === 'balance' ? 'с баланса' : esc(method)}</p>
     <p style="margin:0 0 16px">${esc(order.customer_name)} · ${esc(order.phone)}</p>
     ${itemsTable(order.items)}
-    ${button(`${config.siteUrl}/admin/purchases`, 'Перейти к закупке')}
+    ${button(`${config.siteUrl}/admin/orders/${order.id}`, 'Открыть заказ в админке')}
   `);
   return sendMail({ to: notifyAddress(), subject: `Оплачен заказ ${order.number} на ${rub(order.total_rub)}`, html });
 }
 
-async function sendTest(to) {
-  return sendMail({ to, subject: 'Проверка почты Brand Store', html: frame('Почта настроена', '<p>Если вы читаете это письмо, уведомления о заказах будут приходить на этот адрес.</p>') });
+// Товар закончился до выкупа — деньги за него на балансе
+async function sendItemRefunded(order, item, amount) {
+  const html = frame(`Заказ ${order.number}: товара нет в наличии`, `
+    <p style="margin:0 0 12px">К сожалению, «${esc(item.title || 'товар')}»${item.size ? ` (${esc(item.size)})` : ''} закончился в магазине до выкупа.</p>
+    <p style="margin:0 0 12px"><b>${rub(amount)}</b> вернули на ваш баланс — их можно потратить на другой заказ или вернуть на карту.</p>
+    <p style="margin:0">Остальные товары заказа выкупим и отправим.</p>
+    ${button(`${config.siteUrl}/account/orders/${order.id}`, 'Посмотреть заказ')}
+  `);
+  return sendMail({ to: order.email, subject: `Заказ ${order.number}: ${rub(amount)} вернули на баланс`, html });
 }
 
-module.exports = { sendMail, sendNewOrderToShop, sendOrderConfirmation, sendStatusUpdate, sendPaidToShop, sendTest, mailStatus, notifyAddress };
+// Пополнение по реквизитам зачислено менеджером
+async function sendTopupCredited(email, amount, balanceRub) {
+  const html = frame('Баланс пополнен', `
+    <p style="margin:0 0 12px">Зачислили <b>${rub(amount)}</b>. На балансе: <b>${rub(balanceRub)}</b>.</p>
+    ${button(`${config.siteUrl}/balance`, 'Открыть баланс')}
+  `);
+  return sendMail({ to: email, subject: `Баланс пополнен на ${rub(amount)}`, html });
+}
+
+async function sendTest(to) {
+  return sendMail({ to, subject: 'Проверка почты QLIC', html: frame('Почта настроена', '<p>Если вы читаете это письмо, уведомления о заказах будут приходить на этот адрес.</p>') });
+}
+
+module.exports = { sendMail, sendNewOrderToShop, sendOrderConfirmation, sendStatusUpdate, sendPaidToShop, sendItemRefunded, sendTopupCredited, sendTest, mailStatus, notifyAddress };

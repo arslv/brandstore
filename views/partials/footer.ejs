@@ -3,7 +3,7 @@
   <div class="wrap">
     <div class="footer__grid">
       <div>
-        <a href="/" class="logo">brand <span class="logo__store">store</span><i class="logo__dot"></i></a>
+        <a href="/" class="logo">QLIC<i class="logo__dot"></i></a>
         <p class="small muted" style="max-width:34ch;margin-top:14px">Магазины Португалии с доставкой в Россию.</p>
       </div>
       <div>
@@ -30,9 +30,14 @@
         </ul>
       </div>
     </div>
+    <nav class="footer__legal" aria-label="Документы">
+      <a href="/offer">Публичная оферта</a>
+      <a href="/privacy">Политика обработки персональных данных</a>
+      <a href="/consent">Согласие на обработку персональных данных</a>
+    </nav>
     <div class="footer__bottom">
-      <span>© <%= new Date().getFullYear() %> Brand Store</span>
-      <span>Товарные знаки принадлежат их владельцам. Brand Store не является официальным представителем магазинов.</span>
+      <span>© <%= new Date().getFullYear() %> QLIC<% if (legal.name) { %> · <%= legal.name %><% if (legal.ogrn) { %>, ОГРН <%= legal.ogrn %><% } %><% if (legal.inn) { %>, ИНН <%= legal.inn %><% } %><% } %></span>
+      <span>Товарные знаки принадлежат их владельцам. QLIC не является официальным представителем магазинов.</span>
     </div>
   </div>
 </footer>

@@ -1,5 +1,5 @@
 // Интеграция с ЮKassa (https://yookassa.ru/developers). Включается, если в .env заданы
-// YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY. Покупатель платит картой или через СБП на странице ЮKassa.
+// YOOKASSA_SHOP_ID и YOOKASSA_SECRET_KEY. Через ЮKassa покупатель пополняет баланс (картой, СБП, SberPay, T-Pay, ЮMoney).
 const crypto = require('crypto');
 const config = require('../config');
 
@@ -30,36 +30,53 @@ async function api(method, path, body) {
 
 const money = (n) => ({ value: Number(n).toFixed(2), currency: 'RUB' });
 
-async function createPayment(order, items, methodType) {
+// Чеки 54-ФЗ (YOOKASSA_SEND_RECEIPT=true). Пополнение баланса — аванс: товары ещё не известны, поэтому признак
+// способа расчёта «аванс» и предмет расчёта «платёж». При оплате заказа с баланса — второй чек «полный расчёт»
+// с зачётом аванса (createSettlementReceipt). Какие признаки нужны именно вам (в т. ч. агентские), уточните у бухгалтера.
+const TOPUP_RECEIPT = { description: 'Пополнение баланса (аванс)', payment_mode: 'advance', payment_subject: 'payment' };
+
+function receiptsOn() {
+  return enabled() && config.yookassa.sendReceipt;
+}
+
+// Платёж на пополнение баланса. После оплаты ЮKassa возвращает покупателя на returnUrl и присылает уведомление.
+async function createTopupPayment({ topupId, userId, amount, email, methodType, returnUrl }) {
   const body = {
-    amount: money(order.total_rub),
+    amount: money(amount),
     capture: true,
-    confirmation: { type: 'redirect', return_url: `${config.siteUrl}/account/orders/${order.id}?paid=1` },
+    confirmation: { type: 'redirect', return_url: returnUrl },
     ...(methodType ? { payment_method_data: { type: methodType } } : {}),
-    description: `Заказ ${order.number}`.slice(0, 128),
-    metadata: { order_id: String(order.id), order_number: order.number },
+    description: `Пополнение баланса QLIC, ${email}`.slice(0, 128),
+    metadata: { topup_id: String(topupId), user_id: String(userId) },
   };
   if (config.yookassa.sendReceipt) {
-    const lines = items
-      .filter((it) => it.item_status !== 'unavailable')
-      .map((it) => ({
-        description: `${it.store_name ? it.store_name + ': ' : ''}${it.title || 'Товар'}`.slice(0, 128),
-        quantity: '1.00',
-        amount: money(it.line_total_rub),
-        vat_code: config.yookassa.vatCode,
-        payment_mode: 'full_prepayment',
-        payment_subject: 'commodity',
-      }));
-    if (order.delivery_rub > 0) {
-      lines.push({ description: 'Доставка', quantity: '1.00', amount: money(order.delivery_rub), vat_code: config.yookassa.vatCode, payment_mode: 'full_prepayment', payment_subject: 'service' });
-    }
-    body.receipt = { customer: { email: order.email }, items: lines };
+    body.receipt = {
+      customer: { email },
+      items: [{ description: TOPUP_RECEIPT.description, quantity: '1.00', amount: money(amount), vat_code: config.yookassa.vatCode,
+        payment_mode: TOPUP_RECEIPT.payment_mode, payment_subject: TOPUP_RECEIPT.payment_subject }],
+    };
   }
   return api('POST', '/payments', body);
+}
+
+// Чек зачёта аванса: позиции заказа с признаком «полный расчёт», оплата — ранее внесённым авансом (settlements: prepayment).
+// lines: [{ description, amount (₽ за позицию), subject: commodity|service }], сумма lines = amount.
+async function createSettlementReceipt({ paymentId, email, lines, amount }) {
+  return api('POST', '/receipts', {
+    type: 'payment',
+    payment_id: paymentId,
+    send: true,
+    customer: { email },
+    items: lines.map((l) => ({
+      description: l.description, quantity: '1.00', amount: money(l.amount), vat_code: config.yookassa.vatCode,
+      payment_mode: 'full_payment', payment_subject: l.subject || 'commodity',
+    })),
+    settlements: [{ type: 'prepayment', amount: money(amount) }],
+  });
 }
 
 async function getPayment(id) {
   return api('GET', `/payments/${encodeURIComponent(id)}`);
 }
 
-module.exports = { enabled, createPayment, getPayment };
+module.exports = { enabled, receiptsOn, createTopupPayment, createSettlementReceipt, getPayment };

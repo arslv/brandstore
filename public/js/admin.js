@@ -7,22 +7,6 @@
       window.location.href = tr.dataset.href;
     });
   });
-  // Живой пересчёт цены позиции в админке
-  document.querySelectorAll('[data-item-row]').forEach((row) => {
-    const rate = parseFloat(row.dataset.rate), markup = parseFloat(row.dataset.markup);
-    const price = row.querySelector('[data-item-price]'), qty = row.querySelector('[data-item-qty]'), out = row.querySelector('[data-item-rub]');
-    const status = row.querySelector('[data-item-status]');
-    const upd = () => {
-      const eur = parseFloat(String(price.value).replace(',', '.')) || 0;
-      const q = Math.max(1, parseInt(qty.value, 10) || 1);
-      const unit = eur > 0 ? Math.ceil((eur * rate * (1 + markup / 100)) / 10) * 10 : 0;
-      const total = status && status.value === 'unavailable' ? 0 : unit * q;
-      out.textContent = Math.round(total).toLocaleString('ru-RU').replace(/,/g, ' ') + ' ₽';
-    };
-    [price, qty, status].forEach((el) => el && el.addEventListener('input', upd));
-    if (status) status.addEventListener('change', upd);
-  });
-
   // Проверка ссылки в карточке магазина
   const box = document.querySelector('[data-parse-test]');
   if (box) {

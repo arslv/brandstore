@@ -69,6 +69,9 @@ function locals(req, res, next) {
   res.locals.icon = icon;
   res.locals.pricing = pricing;
   res.locals.cartCount = db.prepare('SELECT COALESCE(SUM(qty), 0) AS n FROM cart_items WHERE owner = ?').get(owner).n;
+  res.locals.userBalance = req.user
+    ? db.prepare("SELECT COALESCE(SUM(amount_rub), 0) AS b FROM balance_ops WHERE user_id = ? AND status = 'done'").get(req.user.id).b
+    : 0;
   res.locals.favIds = req.user
     ? new Set(db.prepare('SELECT product_id FROM favorites WHERE user_id = ?').all(req.user.id).map((r) => r.product_id))
     : new Set();
@@ -78,6 +81,17 @@ function locals(req, res, next) {
     telegram: settings.get('shop_telegram'),
     paymentInstructions: settings.get('payment_instructions'),
   };
+  // Реквизиты продавца — в подвале и в оферте/политике/согласии (обязательны по правилам дистанционной продажи)
+  res.locals.legal = {
+    name: settings.get('legal_name'),
+    ogrn: settings.get('legal_ogrn'),
+    inn: settings.get('legal_inn'),
+    address: settings.get('legal_address'),
+    email: settings.get('shop_email'),
+    phone: settings.get('shop_phone'),
+    site: config.siteUrl,
+  };
+  res.locals.legal.filled = !!(res.locals.legal.name && res.locals.legal.ogrn && res.locals.legal.inn && res.locals.legal.email);
   res.locals.storesTotal = db.prepare('SELECT COUNT(*) AS n FROM stores WHERE is_active = 1').get().n;
   next();
 }

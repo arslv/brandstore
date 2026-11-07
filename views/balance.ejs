@@ -1,0 +1,76 @@
+<%- include('partials/header') %>
+<div class="wrap page">
+  <div class="account">
+    <%- include('account/_nav') %>
+    <div>
+      <h1 class="page-title">Баланс</h1>
+      <% if (topped) { %><div class="paid-banner"><%- icon('check') %><b>Баланс пополнен</b></div><% } %>
+      <% if (failed) { %><div class="flash flash--error" style="margin:0 0 20px">Оплата не прошла. Попробуйте ещё раз или выберите другой способ.</div><% } %>
+      <% if (request) { %>
+        <div class="panel panel--dark" style="margin-bottom:24px">
+          <p class="panel__title" style="margin-bottom:6px">Заявка на <%= fmt.rub(request.amount_rub) %> создана</p>
+          <p style="margin:0;opacity:.85;white-space:pre-line"><%= shop.paymentInstructions %></p>
+        </div>
+      <% } %>
+
+      <div class="balance">
+        <div class="balance__card">
+          <span>На балансе</span>
+          <b class="balance__sum"><%= fmt.rub(balance) %></b>
+        </div>
+
+        <form class="panel balance__topup" method="post" action="/balance/topup" data-topup>
+          <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+          <p class="panel__title">Пополнить</p>
+          <% if (payMode === 'demo') { %><div class="test-banner"><%- icon('alert') %><span>Тестовый режим: деньги не списываются.</span></div><% } %>
+          <div class="field">
+            <label for="amount">Сумма, ₽</label>
+            <input class="input balance__amount" id="amount" name="amount" type="number" inputmode="numeric" min="<%= MIN %>" max="<%= MAX %>" step="1" value="<%= amount %>" placeholder="от <%= MIN %> ₽" required data-topup-amount>
+            <div class="chips balance__quick">
+              <% [1000, 3000, 5000, 10000].forEach((n) => { %><button class="chip" type="button" data-topup-quick="<%= n %>"><%= fmt.rub(n) %></button><% }) %>
+            </div>
+          </div>
+          <% if (payMode !== 'manual') { %>
+            <div class="methods methods--compact" role="radiogroup" aria-label="Способ оплаты">
+              <% methods.forEach((m) => { %>
+                <label class="method">
+                  <input type="radio" name="method" value="<%= m.key %>" <%= method === m.key ? 'checked' : '' %>>
+                  <span class="method__icon"><%- icon(m.icon) %></span>
+                  <span><b><%= m.label %></b><span class="muted"><%= m.hint %></span></span>
+                </label>
+              <% }) %>
+            </div>
+          <% } %>
+          <button class="btn btn--block" type="submit" style="margin-top:18px"><%- icon('lock') %> <span data-topup-label><%= amount ? 'Пополнить на ' + fmt.rub(amount) : 'Пополнить' %></span></button>
+          <% if (next) { %><p class="summary__hint">После оплаты вернём вас к заказу</p><% } %>
+          <p class="muted small" style="margin:12px 0 0">Пополняя баланс, вы принимаете условия <a class="link" href="/offer" target="_blank">оферты</a>. Остаток можно вернуть на карту — напишите нам.</p>
+        </form>
+
+        <div class="balance__history">
+          <h2 class="balance__h">История</h2>
+          <% if (!ops.length) { %>
+            <p class="muted">Операций пока нет.</p>
+          <% } else { %>
+            <ul class="balance-ops">
+              <% ops.forEach((op) => { const pending = op.status === 'pending'; %>
+                <li class="balance-op<%= pending ? ' is-pending' : '' %>">
+                  <div>
+                    <b>
+                      <% if (op.type === 'topup') { %>Пополнение<%= op.provider === 'manual' ? ' по реквизитам' : (methodLabel(op.method) ? ' · ' + methodLabel(op.method) : '') %>
+                      <% } else if (op.type === 'order') { %>Оплата заказа <% if (op.order_id) { %><a class="link" href="/account/orders/<%= op.order_id %>"><%= op.order_number %></a><% } %>
+                      <% } else if (op.type === 'refund') { %>Возврат по заказу <% if (op.order_id) { %><a class="link" href="/account/orders/<%= op.order_id %>"><%= op.order_number %></a><% } %>
+                      <% } else { %><%= op.note || 'Корректировка' %><% } %>
+                    </b>
+                    <div class="muted small"><%= fmt.dateTime(op.created_at) %><%= pending ? ' · ждём перевод' : '' %><%= op.type === 'refund' && op.note ? ' · ' + op.note : '' %></div>
+                  </div>
+                  <span class="balance-op__sum<%= op.amount_rub > 0 ? ' is-plus' : '' %>"><%= op.amount_rub > 0 ? '+' : '−' %><%= fmt.rub(Math.abs(op.amount_rub)) %></span>
+                </li>
+              <% }) %>
+            </ul>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<%- include('partials/footer') %>

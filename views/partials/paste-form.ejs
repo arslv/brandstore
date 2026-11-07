@@ -10,14 +10,12 @@
   <input type="hidden" name="image_url" data-image-url>
   <input type="hidden" name="parsed_price" data-parsed-price>
 
-  <h2 class="paste__title">Вставьте ссылку на товар</h2>
-  <div class="paste__bar">
-    <div class="paste__field">
-      <label class="visually-hidden" for="paste-url">Ссылка на товар</label>
-      <input class="input paste__input" id="paste-url" name="url" type="url" inputmode="url" autocomplete="off" placeholder="<%= _store ? _store.url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '') + '/…' : 'https://www.zara.com/pt/…' %>" data-url>
-      <span class="paste__ok" data-detect-ok hidden title="Магазин из списка"><%- icon('check') %></span>
-    </div>
-    <button class="btn paste__btn" type="submit" data-submit><%- icon('bag') %>Добавить в корзину</button>
+  <%# Поле как поиск в шапке: серое поле, внутри справа чёрная квадратная кнопка %>
+  <div class="paste__field">
+    <label class="visually-hidden" for="paste-url">Ссылка на товар</label>
+    <input class="paste__input" id="paste-url" name="url" type="url" inputmode="url" autocomplete="off" placeholder="Вставьте ссылку на товар<%= _store ? ' ' + _store.name : '' %>" data-url>
+    <span class="paste__ok" data-detect-ok hidden title="Магазин из списка"><%- icon('check') %></span>
+    <button class="paste__btn" type="submit" aria-label="Добавить в корзину" title="Добавить в корзину" data-submit><%- icon('bag') %></button>
   </div>
 
   <div class="detect" data-detect><span data-detect-icon></span><span class="detect__text" data-detect-text></span></div>

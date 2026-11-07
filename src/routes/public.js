@@ -28,8 +28,8 @@ function decorate(products) {
 const PRODUCT_SELECT = `SELECT p.*, s.name AS store_name, s.slug AS store_slug, s.region AS store_region
   FROM products p LEFT JOIN stores s ON s.id = p.store_id`;
 
-// Главная: сетка брендов выбранной вкладки (Женщинам / Мужчинам / Детям / Для дома) и вставка ссылки
-const HOME_HEADINGS = { all: 'Бренды', women: 'Бренды для женщин', men: 'Бренды для мужчин', kids: 'Бренды для детей', home: 'Товары для дома' };
+// Главная: сетка брендов выбранной вкладки (Женщинам / Мужчинам / Детям / Для дома / Косметика) и вставка ссылки
+const HOME_HEADINGS = { all: 'Бренды', women: 'Бренды для женщин', men: 'Бренды для мужчин', kids: 'Бренды для детей', home: 'Товары для дома', beauty: 'Косметика и парфюмерия' };
 router.get('/', (req, res) => {
   const g = HOME_TABS[req.query.g] ? req.query.g : '';
   const key = g || 'all';
@@ -38,9 +38,9 @@ router.get('/', (req, res) => {
     .filter((s) => s.rank)
     .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name, 'ru', { sensitivity: 'base' }));
   res.render('home', {
-    title: 'Brand Store — магазины Португалии с доставкой в Россию',
+    title: 'QLIC — магазины Португалии с доставкой в Россию',
     brands, g, heading: HOME_HEADINGS[key], CATEGORIES,
-    moreUrl: g === 'kids' || g === 'home' ? `/stores?cat=${g}` : '/stores',
+    moreUrl: ['kids', 'home', 'beauty'].includes(g) ? `/stores?cat=${g}` : '/stores',
     quote: pricing.quote(),
   });
 });
@@ -122,6 +122,11 @@ router.get('/order-link', (req, res) => {
 router.get('/how-it-works', (req, res) => {
   res.render('how', { title: 'Как это работает', quote: pricing.quote() });
 });
+
+// Юридические документы (тексты — views/legal, реквизиты — из настроек)
+router.get('/offer', (req, res) => res.render('legal/offer', { title: 'Публичная оферта', quote: pricing.quote() }));
+router.get('/privacy', (req, res) => res.render('legal/privacy', { title: 'Политика обработки персональных данных' }));
+router.get('/consent', (req, res) => res.render('legal/consent', { title: 'Согласие на обработку персональных данных' }));
 
 // ---------- API для форм ----------
 router.get('/api/detect', (req, res) => {

@@ -1,42 +1,67 @@
 <%- include('_header') %>
-<div class="admin__head"><h1>Закупка</h1></div>
-<p class="muted" style="margin:-10px 0 20px;max-width:70ch">Товары из оплаченных заказов, которые нужно выкупить. Сгруппированы по магазинам — удобно оформлять одной корзиной на сайте магазина. Когда все товары заказа выкуплены, заказ переходит в статус «Выкуплен».</p>
-<% const keys = Object.keys(groups); %>
-<% if (!keys.length) { %>
-  <div class="notice">Сейчас выкупать нечего. Здесь появятся товары, когда покупатели оплатят заказы.</div>
+<div class="admin__head"><h1>По магазинам</h1></div>
+
+<nav class="chips bystore-filters" aria-label="Какие заказы показать">
+  <% Object.entries(FILTERS).forEach(([k, f]) => { %>
+    <a class="chip" href="/admin/purchases<%= k === 'paid' ? '' : '?s=' + k %>" aria-pressed="<%= filter === k ? 'true' : 'false' %>"><%= f.label %><% if (counts[k]) { %> · <%= counts[k] %><% } %></a>
+  <% }) %>
+</nav>
+
+<% if (!groups.length) { %>
+  <div class="notice"><%= filter === 'paid' ? 'Оплаченных заказов пока нет. Здесь появятся их товары, собранные по магазинам.' : 'Здесь пусто.' %></div>
+<% } else { %>
+  <p class="muted bystore-total">
+    <%= groups.length %> <%= fmt.plural(groups.length, 'магазин', 'магазина', 'магазинов') %> ·
+    <%= groups.reduce((n, g) => n + g.qty, 0) %> шт. ·
+    <%= customers %> <%= fmt.plural(customers, 'покупатель', 'покупателя', 'покупателей') %>
+  </p>
 <% } %>
-<% keys.forEach((name) => { const g = groups[name]; %>
-  <section class="purchase-group">
-    <div class="purchase-group__head">
-      <%- include('../partials/store-icon', { s: { name, slug: g.store.store_slug, icon_domain: g.store.icon_domain, logo_path: g.store.logo_path }, size: 'sm' }) %>
-      <h2 style="margin:0;font-size:18px"><%= name %></h2>
-      <span class="muted"><%= g.items.length %> поз. · <%= fmt.eur(g.sumEur) %></span>
-      <% if (g.store.store_url) { %><a class="link small" href="<%= g.store.store_url %>" target="_blank" rel="noopener">Сайт магазина ↗</a><% } %>
-    </div>
-    <div class="table-wrap">
-      <table class="table">
-        <thead><tr><th></th><th>Товар</th><th>Размер</th><th>Цвет</th><th>Кол-во</th><th class="num">Цена</th><th>Заказ</th><th></th></tr></thead>
-        <tbody>
-          <% g.items.forEach((it) => { %>
-            <tr>
-              <td><% if (it.image_url) { %><img class="thumb" src="<%= it.image_url %>" alt=""><% } else { %><span class="thumb"></span><% } %></td>
-              <td><%= it.title %><% if (it.url) { %><div><a class="link small" href="<%= it.url %>" target="_blank" rel="noopener nofollow">Открыть товар ↗</a></div><% } %><% if (it.comment) { %><div class="small muted">«<%= it.comment %>»</div><% } %></td>
-              <td><b><%= it.size %></b></td>
-              <td><b><%= it.color %></b></td>
-              <td><%= it.qty %></td>
-              <td class="num"><%= fmt.eur(it.price_eur) %></td>
-              <td><a class="link" href="/admin/orders/<%= it.order_id %>"><%= it.number %></a></td>
-              <td>
-                <form method="post" action="/admin/purchases/<%= it.id %>">
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>">
-                  <button class="btn btn--sm" type="submit">Выкуплен</button>
-                </form>
-              </td>
-            </tr>
-          <% }) %>
-        </tbody>
-      </table>
-    </div>
+
+<% groups.forEach((g) => { const st = g.store; %>
+  <section class="bystore">
+    <header class="bystore__head">
+      <span class="bystore__logo" style="<%= fmt.tileStyle(st) %>" data-font="<%= st.tile_font || '' %>"><span class="brand-tile__name" data-fit><%= st.tile_text || g.name %></span></span>
+      <div class="bystore__title">
+        <h2><%= g.name %></h2>
+        <div class="muted small">
+          <%= g.qty %> шт. · <%= g.customers.length %> <%= fmt.plural(g.customers.length, 'покупатель', 'покупателя', 'покупателей') %> ·
+          <%= g.orderCount %> <%= fmt.plural(g.orderCount, 'заказ', 'заказа', 'заказов') %> · <b><%= fmt.eur(g.sumEur) %></b>
+        </div>
+      </div>
+      <% if (st.store_url) { %><a class="btn btn--sm btn--ghost" href="<%= st.store_url %>" target="_blank" rel="noopener"><%- icon('external') %> Сайт магазина</a><% } %>
+    </header>
+
+    <% g.customers.forEach((c) => { %>
+      <div class="bystore__cust">
+        <div class="bystore__who">
+          <b><%= c.name %></b>
+          <% if (c.phone) { %><a class="muted" href="tel:<%= c.phone.replace(/[^+\d]/g, '') %>"><%= c.phone %></a><% } %>
+          <span class="muted"><%= c.qty %> шт.</span>
+          <span class="bystore__orders">
+            <% c.orders.forEach((o) => { const os = ORDER_STATUSES[o.status] || {}; %>
+              <a class="link" href="/admin/orders/<%= o.id %>"><%= o.number %></a> <span class="status status--<%= os.tone %>"><%= os.short %></span>
+            <% }) %>
+          </span>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th></th><th>Товар</th><th>Размер</th><th>Цвет</th><th>Кол-во</th><th class="num">Цена</th></tr></thead>
+            <tbody>
+              <% c.items.forEach((it) => { %>
+                <tr>
+                  <td><% if (it.image_url) { %><img class="thumb" src="<%= it.image_url %>" alt=""><% } else { %><span class="thumb"></span><% } %></td>
+                  <td><%= it.title || 'Товар по ссылке' %><% if (it.url) { %><div><a class="link small" href="<%= it.url %>" target="_blank" rel="noopener nofollow">Открыть товар ↗</a></div><% } %><% if (it.comment) { %><div class="small muted">«<%= it.comment %>»</div><% } %></td>
+                  <td><b><%= it.size %></b></td>
+                  <td><b><%= it.color %></b></td>
+                  <td><%= it.qty %></td>
+                  <td class="num nowrap"><%= fmt.eur(it.price_eur) %></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    <% }) %>
   </section>
 <% }) %>
 <%- include('_footer') %>

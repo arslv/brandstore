@@ -1,0 +1,9 @@
+<%# Реквизиты продавца/оператора — из «Админка → Настройки → Реквизиты продавца» %>
+<ul class="legal__req">
+  <li><%- fmt.legalField(legal.name, 'ИП или организация — заполните в настройках') %></li>
+  <li>ОГРН / ОГРНИП: <%- fmt.legalField(legal.ogrn, 'ОГРН') %></li>
+  <li>ИНН: <%- fmt.legalField(legal.inn, 'ИНН') %></li>
+  <li>Адрес для писем и претензий: <%- fmt.legalField(legal.address, 'адрес') %></li>
+  <li>Почта: <%- fmt.legalField(legal.email, 'почта') %><% if (legal.phone) { %>, телефон: <%= legal.phone %><% } %></li>
+  <li>Сайт: <%= legal.site %></li>
+</ul>

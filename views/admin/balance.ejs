@@ -1,0 +1,96 @@
+<%- include('_header') %>
+<div class="admin__head">
+  <div>
+    <% if (customer) { %><div class="crumbs" style="margin:0 0 6px"><a href="/admin/balance">Балансы</a><span>/</span><span><%= customer.name || customer.email %></span></div><% } %>
+    <h1><%= customer ? (customer.name || customer.email) : 'Балансы' %></h1>
+    <div class="muted small" style="margin-top:4px">
+      <% if (customer) { %><%= customer.email %><%= customer.phone ? ' · ' + customer.phone : '' %> · <a class="link" href="/admin/orders?q=<%= encodeURIComponent(customer.email) %>">заказы</a><% } else { %>На балансах покупателей всего <b><%= fmt.rub(total) %></b><% } %>
+    </div>
+  </div>
+  <% if (customer) { %><div class="balance-big"><span class="muted small">Баланс</span><b><%= fmt.rub(userBalanceRub) %></b></div><% } %>
+</div>
+
+<% if (pending.length) { %>
+  <section class="panel" style="margin-bottom:20px">
+    <p class="panel__title">Ждут зачисления</p>
+    <p class="muted small" style="margin-top:-8px">Заявки на пополнение переводом по реквизитам. Пришли деньги — «Зачислить», покупатель получит письмо.</p>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Покупатель</th><th>Дата</th><th class="num">Сумма</th><th></th></tr></thead>
+        <tbody>
+          <% pending.forEach((op) => { %>
+            <tr>
+              <td><a class="link" href="/admin/balance?user=<%= op.user_id %>"><b><%= op.name || op.email %></b></a><div class="muted small"><%= op.email %></div></td>
+              <td class="small"><%= fmt.dateTime(op.created_at) %></td>
+              <td class="num"><b><%= fmt.rub(op.amount_rub) %></b></td>
+              <td class="nowrap" style="text-align:right">
+                <form method="post" action="/admin/balance/<%= op.id %>/confirm" style="display:inline" data-confirm="Зачислить <%= fmt.rub(op.amount_rub) %> на баланс <%= op.email %>?">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>"><% if (customer) { %><input type="hidden" name="back" value="user"><% } %>
+                  <button class="btn btn--sm" type="submit">Зачислить</button>
+                </form>
+                <form method="post" action="/admin/balance/<%= op.id %>/reject" style="display:inline" data-confirm="Отклонить заявку?">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>"><% if (customer) { %><input type="hidden" name="back" value="user"><% } %>
+                  <button class="btn btn--sm btn--ghost" type="submit">Отклонить</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+<% } %>
+
+<div class="<%= customer ? 'grid-2' : '' %>">
+  <div>
+    <% if (!ops.length) { %>
+      <div class="notice">Операций пока нет.</div>
+    <% } else { %>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th>Дата</th><% if (!customer) { %><th>Покупатель</th><% } %><th>Операция</th><th class="num">Сумма</th></tr></thead>
+          <tbody>
+            <% ops.forEach((op) => { const off = op.status !== 'done'; %>
+              <tr class="<%= off ? 'is-out' : '' %>">
+                <td class="small nowrap"><%= fmt.dateTime(op.created_at) %></td>
+                <% if (!customer) { %><td><a class="link" href="/admin/balance?user=<%= op.user_id %>"><%= op.name || op.email %></a></td><% } %>
+                <td>
+                  <%= BALANCE_OPS[op.type] || op.type %>
+                  <% if (op.order_id) { %> <a class="link" href="/admin/orders/<%= op.order_id %>"><%= op.order_number %></a><% } %>
+                  <% if (op.type === 'topup') { %><span class="muted small"> · <%= op.provider === 'manual' ? 'по реквизитам' : op.provider === 'demo' ? 'тест' : 'ЮKassa' %><%= methodLabel(op.method) ? ', ' + methodLabel(op.method) : '' %></span><% } %>
+                  <% if (op.status === 'pending') { %> <span class="status status--warn">ждёт</span><% } else if (op.status === 'failed') { %> <span class="status status--muted">не прошла</span><% } %>
+                  <% if (op.note) { %><div class="muted small"><%= op.note %></div><% } %>
+                  <% if (op.payment_id && op.provider === 'yookassa') { %><div class="muted small">платёж <%= op.payment_id %></div><% } %>
+                </td>
+                <td class="num nowrap"><b style="<%= op.amount_rub > 0 && !off ? 'color:var(--ok)' : '' %>"><%= op.amount_rub > 0 ? '+' : '−' %><%= fmt.rub(Math.abs(op.amount_rub)) %></b></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </div>
+
+  <% if (customer) { %>
+  <form class="panel" method="post" action="/admin/balance/adjust">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>">
+    <input type="hidden" name="user_id" value="<%= customer.id %>">
+    <p class="panel__title">Изменить баланс</p>
+    <div class="radio-cards" style="margin-bottom:14px">
+      <label class="radio-card"><input type="radio" name="sign" value="plus" checked><span><b>Зачислить</b><br><span class="muted small">Перевод, компенсация</span></span></label>
+      <label class="radio-card"><input type="radio" name="sign" value="minus"><span><b>Списать</b><br><span class="muted small">Вернули на карту, доплата</span></span></label>
+    </div>
+    <div class="field">
+      <label for="adj_amount">Сумма, ₽</label>
+      <input class="input" id="adj_amount" name="amount" type="number" min="1" step="1" required>
+    </div>
+    <div class="field">
+      <label for="adj_note">За что <span class="muted">— покупатель увидит в истории</span></label>
+      <input class="input" id="adj_note" name="note" maxlength="300" required placeholder="Например: возврат остатка на карту">
+    </div>
+    <button class="btn btn--block" type="submit">Сохранить</button>
+    <p class="muted small" style="margin:12px 0 0">Вернуть деньги на карту: сделайте возврат платежа в кабинете ЮKassa (чек возврата она отправит сама), затем спишите эту сумму здесь.</p>
+  </form>
+  <% } %>
+</div>
+<%- include('_footer') %>

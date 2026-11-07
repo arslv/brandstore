@@ -2,7 +2,6 @@
 <div class="wrap page">
   <nav class="crumbs"><a href="/cart">Корзина</a><span>/</span><span>Оформление</span></nav>
   <h1 class="page-title">Оформление заказа</h1>
-  <p class="page-sub"><%= payFlow === 'instant' ? 'Укажите получателя и способ оплаты.' : 'Оплата — после проверки наличия. Мы пришлём письмо, когда заказ можно будет оплатить.' %></p>
   <form class="cart" method="post" action="/checkout" novalidate>
     <input type="hidden" name="_csrf" value="<%= csrfToken %>">
     <div class="panel">
@@ -22,7 +21,7 @@
       <div class="field">
         <label for="email">Почта</label>
         <input class="input <%= errors.email ? 'is-invalid' : '' %>" id="email" name="email" type="email" value="<%= values.email %>" autocomplete="email" required>
-        <span class="field__hint">Сюда придут ссылка на оплату и трек-номер.</span>
+        <span class="field__hint">Сюда придёт трек-номер.</span>
         <% if (errors.email) { %><span class="field__error"><%= errors.email %></span><% } %>
       </div>
 
@@ -48,27 +47,10 @@
         <label for="comment">Комментарий к заказу <span class="muted">— необязательно</span></label>
         <textarea class="textarea" id="comment" name="comment" maxlength="1000"><%= values.comment %></textarea>
       </div>
-      <p class="panel__title" style="margin-top:12px">Оплата</p>
-      <% if (payFlow === 'instant') { %>
-        <% if (payMode === 'demo') { %><div class="test-banner"><%- icon('alert') %><span>Тестовый режим оплаты: деньги не списываются.</span></div><% } %>
-        <div class="methods" role="radiogroup" aria-label="Способ оплаты" style="margin-bottom:16px">
-          <% methods.forEach((m) => { %>
-            <label class="method">
-              <input type="radio" name="method" value="<%= m.key %>" <%= values.method === m.key ? 'checked' : '' %>>
-              <span class="method__icon"><%- icon(m.icon) %></span>
-              <span><b><%= m.label %></b><span class="muted"><%= m.hint %></span></span>
-            </label>
-          <% }) %>
-        </div>
-        <% if (errors.method) { %><p class="field__error" style="margin:-8px 0 16px"><%= errors.method %></p><% } %>
-      <% } else { %>
-        <p class="muted small" style="margin:-6px 0 12px">Сначала проверим наличие и цены в магазинах, потом пришлём письмо — оплатить можно будет в личном кабинете.</p>
-        <div class="method-badges" style="margin-bottom:20px">
-          <% methods.forEach((m) => { %><span class="method-badge"><%- icon(m.icon) %><%= m.label %></span><% }) %>
-        </div>
-      <% } %>
-      <label class="checkbox"><input type="checkbox" name="agree" value="1" required><span>Согласен с условиями сервиса и обработкой персональных данных</span></label>
+      <label class="checkbox"><input type="checkbox" name="agree" value="1" <%= values.agree ? 'checked' : '' %> required><span>Принимаю условия <a class="link" href="/offer" target="_blank">публичной оферты</a></span></label>
       <% if (errors.agree) { %><span class="field__error"><%= errors.agree %></span><% } %>
+      <label class="checkbox" style="margin-top:10px"><input type="checkbox" name="agree_pd" value="1" <%= values.agree_pd ? 'checked' : '' %> required><span>Даю <a class="link" href="/consent" target="_blank">согласие на обработку персональных данных</a></span></label>
+      <% if (errors.agree_pd) { %><span class="field__error"><%= errors.agree_pd %></span><% } %>
     </div>
 
     <aside class="panel summary">
@@ -77,10 +59,18 @@
         <div class="summary__row small"><span><%= it.store_name ? it.store_name + ' · ' : '' %><%= it.title %> <span class="muted">× <%= it.qty %></span></span><span class="nowrap"><%= fmt.rub(it.line_rub) %></span></div>
       <% }) %>
       <div class="summary__row" style="border-top:1px solid var(--line);margin-top:8px;padding-top:12px"><span>Товары</span><span><%= fmt.rub(cart.subtotal) %></span></div>
-      <div class="summary__row"><span>Доставка в Россию<% if (cart.quote.deliveryEur) { %> <span class="muted">· <%= fmt.eur(cart.quote.deliveryEur) %></span><% } %></span><span><%= cart.delivery ? fmt.rub(cart.delivery) : 'посчитает менеджер' %></span></div>
+      <div class="summary__row"><span>Доставка в Россию<% if (cart.quote.deliveryEur) { %> <span class="muted">· <%= fmt.eur(cart.quote.deliveryEur) %></span><% } %></span><span><%= cart.delivery ? fmt.rub(cart.delivery) : 'бесплатно' %></span></div>
       <div class="summary__row summary__total"><span>Итого</span><span><%= fmt.rub(cart.total) %></span></div>
       <% if (cart.smallOrder) { %><p class="summary__note"><%- icon('truck') %><span>Заказ из 1–2 товаров может доставляться дольше обычного</span></p><% } %>
-      <button class="btn btn--block" type="submit"><%= payFlow === 'instant' ? 'Оформить и оплатить' : 'Оформить заказ' %></button>
+      <div class="summary__balance">
+        <div class="summary__row"><span>На балансе</span><span><%= fmt.rub(balance) %></span></div>
+        <% if (shortfall) { %><div class="summary__row summary__short"><span>Не хватает</span><span><%= fmt.rub(shortfall) %></span></div><% } %>
+      </div>
+      <% if (shortfall) { %>
+        <button class="btn btn--block" type="submit"><%- icon('wallet') %> Пополнить на <%= fmt.rub(topup) %></button>
+      <% } else { %>
+        <button class="btn btn--block" type="submit">Оплатить <%= fmt.rub(cart.total) %></button>
+      <% } %>
       <% if (cart.delivery) { %><p class="summary__hint">От количества товаров стоимость доставки не меняется</p><% } %>
     </aside>
   </form>

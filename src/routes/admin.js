@@ -10,15 +10,17 @@ const pricing = require('../lib/pricing');
 const mailer = require('../lib/mailer');
 const yookassa = require('../lib/yookassa');
 const { refreshRate } = require('../lib/rates');
-const { ORDER_STATUSES, ITEM_STATUSES, CATEGORIES, BEAUTY_SUBCATS, GENDERS, DELIVERY_METHODS, PAYMENT_METHODS, PARSE_RESULTS, parseLabel,
+const { ORDER_STATUSES, NEXT_STATUSES, BALANCE_OPS, CATEGORIES, BEAUTY_SUBCATS, GENDERS, DELIVERY_METHODS, PAYMENT_METHODS, PARSE_RESULTS, parseLabel,
   HOME_TAB_KEYS, NO_RANK, parseHomeTabs, formatHomeTabs, TILE_FONTS, cleanHex } = require('../lib/format');
 const payments = require('../services/payments');
 const { parseProduct, browserStatus } = require('../lib/parser');
 const { safeUrl, slugify, regionPrefix, rootDomain } = require('../lib/urls');
 const orders = require('../services/orders');
+const balance = require('../services/balance');
 const { categoryList } = require('../services/stores');
 
 const router = express.Router();
+const fmtRub = (n) => `${Math.round(n).toLocaleString('ru-RU')} ₽`;
 
 const imgDir = path.join(config.uploadsDir, 'products');
 const logoDir = path.join(config.uploadsDir, 'logos');
@@ -39,14 +41,17 @@ router.use((req, res, next) => {
   res.locals.adminNav = [
     ['/admin', 'Сводка'],
     ['/admin/orders', 'Заказы'],
-    ['/admin/purchases', 'Закупка'],
+    ['/admin/purchases', 'По магазинам'],
+    ['/admin/balance', 'Балансы'],
     ['/admin/products', 'Товары'],
     ['/admin/stores', 'Магазины'],
     ['/admin/users', 'Покупатели'],
     ['/admin/settings', 'Настройки'],
   ];
   res.locals.ORDER_STATUSES = ORDER_STATUSES;
-  res.locals.newOrdersCount = db.prepare("SELECT COUNT(*) AS n FROM orders WHERE status = 'new'").get().n;
+  // Оплаченные, но ещё не отправленные заказы — работа менеджера; заявки на пополнение по реквизитам ждут зачисления
+  res.locals.newOrdersCount = db.prepare("SELECT COUNT(*) AS n FROM orders WHERE status = 'paid'").get().n;
+  res.locals.pendingTopups = db.prepare("SELECT COUNT(*) AS n FROM balance_ops WHERE type = 'topup' AND status = 'pending' AND provider = 'manual'").get().n;
   next();
 });
 
@@ -57,10 +62,11 @@ router.get('/', (req, res) => {
   const paidSum = db.prepare("SELECT COALESCE(SUM(total_rub),0) AS s FROM orders WHERE status IN ('paid','purchased','shipped','delivered')").get().s;
   const monthSum = db.prepare("SELECT COALESCE(SUM(total_rub),0) AS s FROM orders WHERE status IN ('paid','purchased','shipped','delivered') AND paid_at >= datetime('now','-30 days')").get().s;
   const users = db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'customer'").get().n;
-  const toBuy = db.prepare("SELECT COUNT(*) AS n FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE o.status = 'paid' AND oi.item_status != 'purchased' AND oi.item_status != 'unavailable'").get().n;
+  const toBuy = db.prepare("SELECT COALESCE(SUM(oi.qty), 0) AS n FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE o.status = 'paid' AND oi.item_status != 'unavailable'").get().n;
+  const balances = db.prepare("SELECT COALESCE(SUM(amount_rub), 0) AS s FROM balance_ops WHERE status = 'done'").get().s;
   res.render('admin/dashboard', {
-    title: 'Сводка', byStatus, recent, paidSum, monthSum, users, toBuy,
-    quote: pricing.quote(), rateUpdated: settings.get('rate_updated_at'), mail: mailer.mailStatus(), yookassaOn: yookassa.enabled(),
+    title: 'Сводка', byStatus, recent, paidSum, monthSum, users, toBuy, balances,
+    quote: pricing.quote(), rateUpdated: settings.get('rate_updated_at'), mail: mailer.mailStatus(), yookassaOn: yookassa.enabled(), payMode: payments.mode(),
   });
 });
 
@@ -82,83 +88,95 @@ router.get('/orders/:id', (req, res, next) => {
   const order = orders.getOrder(req.params.id);
   if (!order) return next();
   res.render('admin/order', {
-    title: `Заказ ${order.number}`, order, ITEM_STATUSES, DELIVERY_METHODS,
-    euLimit: parseFloat(settings.get('eu_limit_eur', '300')) || 0, yookassaOn: yookassa.enabled(),
-    payMode: payments.mode(), methodLabel: payments.methodLabel(order.payment_method),
+    title: `Заказ ${order.number}`, order, DELIVERY_METHODS, NEXT_STATUSES,
+    euLimit: parseFloat(settings.get('eu_limit_eur', '300')) || 0,
+    methodLabel: payments.methodLabel(order.payment_method), userBalanceRub: balance.get(order.user_id),
   });
 });
 
-router.post('/orders/:id/items', (req, res, next) => {
+// Товар закончился до выкупа — вернуть его стоимость на баланс покупателя
+router.post('/orders/:id/items/:itemId/refund', (req, res, next) => {
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
   if (!order) return next();
-  const items = db.prepare('SELECT id FROM order_items WHERE order_id = ?').all(order.id);
-  const upd = db.prepare('UPDATE order_items SET price_eur = ?, qty = ?, item_status = ?, size = ?, color = ? WHERE id = ? AND order_id = ?');
-  const tx = db.transaction(() => {
-    for (const { id } of items) {
-      const price = parseFloat(String(req.body[`price_${id}`] || '').replace(',', '.'));
-      const qty = Math.min(20, Math.max(1, parseInt(req.body[`qty_${id}`], 10) || 1));
-      const st = ITEM_STATUSES[req.body[`status_${id}`]] ? req.body[`status_${id}`] : 'pending';
-      const size = String(req.body[`size_${id}`] || '').slice(0, 60);
-      const color = String(req.body[`color_${id}`] || '').slice(0, 60);
-      if (Number.isFinite(price) && price >= 0) upd.run(price, qty, st, size, color, id, order.id);
-    }
-    const delivery = parseInt(req.body.delivery_rub, 10);
-    if (Number.isFinite(delivery) && delivery >= 0) db.prepare('UPDATE orders SET delivery_rub = ? WHERE id = ?').run(delivery, order.id);
-  });
-  tx();
-  orders.recalc(order.id);
-  req.flash('ok', 'Позиции и сумма заказа обновлены.');
+  const r = orders.refundItem(order.id, Number(req.params.itemId), req.user.id);
+  if (!r) req.flash('error', 'Вернуть деньги за позицию можно только в оплаченном и ещё не отправленном заказе.');
+  else if (r.cancelled) req.flash('ok', `Товаров в заказе не осталось — заказ отменён, на баланс покупателя возвращено ${fmtRub(r.amount)}.`);
+  else req.flash('ok', `На баланс покупателя возвращено ${fmtRub(r.amount)}. Покупатель получил письмо.`);
   res.redirect(`/admin/orders/${order.id}`);
 });
 
 router.post('/orders/:id/status', (req, res, next) => {
   const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
   if (!order) return next();
-  const status = ORDER_STATUSES[req.body.status] ? req.body.status : order.status;
-  const fields = {
-    tracking: String(req.body.tracking_number || '').trim().slice(0, 100),
-    payUrl: safeUrl(req.body.payment_url) ? safeUrl(req.body.payment_url).href : '',
-    managerComment: String(req.body.manager_comment || '').trim().slice(0, 2000),
-  };
-  db.prepare("UPDATE orders SET tracking_number = ?, payment_url = ?, manager_comment = ?, updated_at = datetime('now') WHERE id = ?")
-    .run(fields.tracking, fields.payUrl, fields.managerComment, order.id);
-  if (status !== order.status) {
-    orders.setStatus(order.id, status, { note: String(req.body.note || '').trim().slice(0, 1000), notify: Boolean(req.body.notify) });
-    req.flash('ok', `Статус изменён: ${ORDER_STATUSES[status].label}.${req.body.notify ? ' Покупателю отправлено письмо.' : ''}`);
-  } else {
+  const allowed = NEXT_STATUSES[order.status] || [order.status];
+  const status = allowed.includes(req.body.status) ? req.body.status : order.status;
+  const tracking = String(req.body.tracking_number || '').trim().slice(0, 100);
+  const note = String(req.body.note || '').trim().slice(0, 1000);
+  const notify = Boolean(req.body.notify);
+  if (status === 'shipped' && !tracking) {
+    req.flash('error', 'Укажите трек-номер — покупатель получит его в письме.');
+    return res.redirect(`/admin/orders/${order.id}`);
+  }
+  db.prepare("UPDATE orders SET tracking_number = ?, manager_comment = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(tracking, String(req.body.manager_comment || '').trim().slice(0, 2000), order.id);
+  if (status === order.status) {
     req.flash('ok', 'Данные заказа сохранены.');
+  } else if (status === 'cancelled') {
+    const r = orders.cancel(order.id, { note, notify, adminId: req.user.id });
+    req.flash('ok', `Заказ отменён.${r && r.refunded ? ` На баланс покупателя возвращено ${fmtRub(r.refunded)}.` : ''}${notify ? ' Покупателю отправлено письмо.' : ''}`);
+  } else {
+    orders.setStatus(order.id, status, { note, notify });
+    req.flash('ok', `Статус изменён: ${ORDER_STATUSES[status].label}.${notify ? ' Покупателю отправлено письмо.' : ''}`);
   }
   res.redirect(`/admin/orders/${order.id}`);
 });
 
-// ---------- Закупка: что купить в магазинах по оплаченным заказам ----------
+// ---------- По магазинам: позиции всех заказов, собранные по магазину, внутри — по покупателю ----------
+// ZARA: 2 товара у одного покупателя и 3 у другого — в одной карточке, удобно выкупать одной корзиной.
+// Оплаченные заказы — к выкупу; после отправки (трек-номер) заказ уходит во вкладку «Отправлены».
+const BY_STORE = {
+  paid: { label: 'Оплачены', statuses: ['paid'] },
+  shipped: { label: 'Отправлены', statuses: ['shipped'] },
+};
 router.get('/purchases', (req, res) => {
-  const rows = db.prepare(`SELECT oi.*, o.number, o.id AS order_id, s.slug AS store_slug, s.icon_domain, s.logo_path, s.url AS store_url
+  const filter = BY_STORE[req.query.s] ? req.query.s : 'paid';
+  const statuses = BY_STORE[filter].statuses;
+  const rows = db.prepare(`SELECT oi.*, o.number, o.id AS order_id, o.status AS order_status, o.customer_name, o.phone, o.email, o.user_id,
+      s.slug AS store_slug, s.name AS store_title, s.icon_domain, s.logo_path, s.url AS store_url, s.tile_bg, s.tile_fg, s.tile_font, s.tile_text
     FROM order_items oi JOIN orders o ON o.id = oi.order_id LEFT JOIN stores s ON s.id = oi.store_id
-    WHERE o.status = 'paid' AND oi.item_status NOT IN ('purchased', 'unavailable')
-    ORDER BY oi.store_name, o.id`).all();
-  const groups = {};
-  for (const r of rows) {
-    const key = r.store_name || 'Другие магазины';
-    (groups[key] = groups[key] || { store: r, items: [], sumEur: 0 }).items.push(r);
-    groups[key].sumEur += r.price_eur * r.qty;
-  }
-  res.render('admin/purchases', { title: 'Закупка', groups });
-});
+    WHERE o.status IN (${statuses.map(() => '?').join(',')}) AND oi.item_status != 'unavailable'
+    ORDER BY o.id, oi.id`).all(...statuses);
 
-router.post('/purchases/:itemId', (req, res) => {
-  const item = db.prepare('SELECT * FROM order_items WHERE id = ?').get(req.params.itemId);
-  if (item) {
-    db.prepare("UPDATE order_items SET item_status = 'purchased' WHERE id = ?").run(item.id);
-    const left = db.prepare("SELECT COUNT(*) AS n FROM order_items WHERE order_id = ? AND item_status NOT IN ('purchased','unavailable')").get(item.order_id).n;
-    if (left === 0) {
-      orders.setStatus(item.order_id, 'purchased', { note: 'Все товары выкуплены в магазинах', notify: true });
-      req.flash('ok', 'Все товары заказа выкуплены — статус заказа обновлён, покупатель получил письмо.');
-    } else {
-      req.flash('ok', 'Отмечено как выкупленное.');
+  const stores = new Map();
+  for (const r of rows) {
+    const sk = r.store_id ? 's' + r.store_id : 'n' + (r.store_name || '');
+    if (!stores.has(sk)) {
+      stores.set(sk, { name: r.store_title || r.store_name || 'Другой магазин', store: r, customers: new Map(), qty: 0, sumEur: 0, orders: new Set() });
     }
+    const st = stores.get(sk);
+    // Один человек — по аккаунту, без аккаунта — по почте/телефону
+    const ck = r.user_id ? 'u' + r.user_id : 'c' + (r.email || r.phone || r.order_id);
+    if (!st.customers.has(ck)) st.customers.set(ck, { name: r.customer_name, phone: r.phone, orders: new Map(), items: [], qty: 0 });
+    const c = st.customers.get(ck);
+    c.orders.set(r.order_id, { id: r.order_id, number: r.number, status: r.order_status });
+    c.items.push(r);
+    c.qty += r.qty;
+    st.qty += r.qty;
+    st.sumEur += r.price_eur * r.qty;
+    st.orders.add(r.order_id);
   }
-  res.redirect('/admin/purchases');
+  const groups = [...stores.values()]
+    .map((st) => ({ ...st, orderCount: st.orders.size, customers: [...st.customers.values()].map((c) => ({ ...c, orders: [...c.orders.values()] })) }))
+    .sort((a, b) => b.qty - a.qty || a.name.localeCompare(b.name, 'ru'));
+
+  // Сколько позиций в каждом фильтре — для подписей на кнопках
+  const counts = {};
+  for (const [k, f] of Object.entries(BY_STORE)) {
+    counts[k] = db.prepare(`SELECT COALESCE(SUM(oi.qty), 0) AS n FROM order_items oi JOIN orders o ON o.id = oi.order_id
+      WHERE o.status IN (${f.statuses.map(() => '?').join(',')}) AND oi.item_status != 'unavailable'`).get(...f.statuses).n;
+  }
+  const customers = new Set(rows.map((r) => (r.user_id ? 'u' + r.user_id : 'c' + (r.email || r.phone || r.order_id)))).size;
+  res.render('admin/purchases', { title: 'По магазинам', groups, filter, FILTERS: BY_STORE, counts, customers });
 });
 
 // ---------- Товары витрины ----------
@@ -340,9 +358,64 @@ router.get('/parse-test', async (req, res) => {
 // ---------- Покупатели ----------
 router.get('/users', (req, res) => {
   const list = db.prepare(`SELECT u.*, (SELECT COUNT(*) FROM orders o WHERE o.user_id = u.id) AS orders_count,
-    (SELECT COALESCE(SUM(total_rub),0) FROM orders o WHERE o.user_id = u.id AND o.status IN ('paid','purchased','shipped','delivered')) AS paid_sum
+    (SELECT COALESCE(SUM(total_rub),0) FROM orders o WHERE o.user_id = u.id AND o.status IN ('paid','purchased','shipped','delivered')) AS paid_sum,
+    (SELECT COALESCE(SUM(amount_rub),0) FROM balance_ops b WHERE b.user_id = u.id AND b.status = 'done') AS balance_rub
     FROM users u ORDER BY u.id DESC LIMIT 500`).all();
   res.render('admin/users', { title: 'Покупатели', list });
+});
+
+// ---------- Балансы покупателей ----------
+// Все операции; ?user=ID — один покупатель: его баланс, история и ручная корректировка.
+router.get('/balance', (req, res) => {
+  // customer, а не user: user в шаблонах — вошедший администратор
+  const customer = req.query.user ? db.prepare('SELECT id, name, email, phone FROM users WHERE id = ?').get(req.query.user) : null;
+  const only = customer ? 'AND b.user_id = ?' : '';
+  const args = customer ? [customer.id] : [];
+  const pending = db.prepare(`SELECT b.*, u.name, u.email FROM balance_ops b JOIN users u ON u.id = b.user_id
+    WHERE b.type = 'topup' AND b.status = 'pending' AND b.provider = 'manual' ${only} ORDER BY b.id`).all(...args);
+  const ops = db.prepare(`SELECT b.*, u.name, u.email, o.number AS order_number FROM balance_ops b JOIN users u ON u.id = b.user_id LEFT JOIN orders o ON o.id = b.order_id
+    WHERE (b.status = 'done' OR b.provider = 'manual' OR b.status = 'failed') ${only} ORDER BY b.id DESC LIMIT 300`).all(...args);
+  const total = db.prepare("SELECT COALESCE(SUM(amount_rub), 0) AS s FROM balance_ops WHERE status = 'done'").get().s;
+  res.render('admin/balance', {
+    title: customer ? `Баланс: ${customer.name || customer.email}` : 'Балансы', customer, userBalanceRub: customer ? balance.get(customer.id) : 0,
+    pending, ops, total, BALANCE_OPS, methodLabel: payments.methodLabel,
+  });
+});
+
+const backToBalance = (req, userId) => `/admin/balance${req.body.back === 'user' && userId ? '?user=' + userId : ''}`;
+
+// Перевод по реквизитам пришёл — зачислить заявку
+router.post('/balance/:id/confirm', (req, res, next) => {
+  const op = balance.getOp(req.params.id);
+  if (!op || op.type !== 'topup') return next();
+  if (balance.confirmTopup(op.id, `Зачислил менеджер ${req.user.email}`)) {
+    const u = db.prepare('SELECT email FROM users WHERE id = ?').get(op.user_id);
+    if (u) mailer.sendTopupCredited(u.email, op.amount_rub, balance.get(op.user_id)).catch((e) => console.error('[mail]', e));
+    req.flash('ok', `Зачислено ${fmtRub(op.amount_rub)}. Покупатель получил письмо.`);
+  }
+  res.redirect(backToBalance(req, op.user_id));
+});
+
+router.post('/balance/:id/reject', (req, res, next) => {
+  const op = balance.getOp(req.params.id);
+  if (!op || op.type !== 'topup') return next();
+  if (balance.failTopup(op.id, `Отклонил менеджер ${req.user.email}`)) req.flash('ok', 'Заявка отклонена.');
+  res.redirect(backToBalance(req, op.user_id));
+});
+
+// Ручная корректировка: + зачислить, − списать (например, вернули остаток на карту через кабинет ЮKassa)
+router.post('/balance/adjust', (req, res) => {
+  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(req.body.user_id);
+  if (!user) return res.redirect('/admin/balance');
+  const amount = balance.parseAmount(req.body.amount) * (req.body.sign === 'minus' ? -1 : 1);
+  const note = String(req.body.note || '').trim().slice(0, 300);
+  if (!note) {
+    req.flash('error', 'Напишите, за что корректировка — покупатель увидит это в истории баланса.');
+    return res.redirect(`/admin/balance?user=${user.id}`);
+  }
+  const r = balance.adjust(user.id, amount, note, req.user.id);
+  req.flash(r.ok ? 'ok' : 'error', r.ok ? `Готово. Баланс покупателя: ${fmtRub(r.balance)}.` : r.error);
+  res.redirect(`/admin/balance?user=${user.id}`);
 });
 
 // ---------- Настройки ----------
@@ -367,10 +440,9 @@ router.post('/settings', (req, res) => {
   if (delivery !== null) settings.set('delivery_fee_eur', delivery);
   const euLimit = num(b.eu_limit_eur, 0, 1000000);
   if (euLimit !== null) settings.set('eu_limit_eur', euLimit);
-  for (const k of ['notify_email', 'shop_email', 'shop_phone', 'shop_telegram']) settings.set(k, String(b[k] || '').trim().slice(0, 200));
+  for (const k of ['notify_email', 'shop_email', 'shop_phone', 'shop_telegram', 'legal_name', 'legal_ogrn', 'legal_inn', 'legal_address']) settings.set(k, String(b[k] || '').trim().slice(0, 300));
   settings.set('payment_instructions', String(b.payment_instructions || '').trim().slice(0, 2000));
-  if (['demo', 'link', 'yookassa'].includes(b.payment_mode)) settings.set('payment_mode', b.payment_mode);
-  settings.set('pay_flow', b.pay_flow === 'instant' ? 'instant' : 'after_check');
+  if (['demo', 'manual', 'yookassa'].includes(b.payment_mode)) settings.set('payment_mode', b.payment_mode);
   const methods = (Array.isArray(b.payment_methods) ? b.payment_methods : [b.payment_methods]).filter((k) => PAYMENT_METHODS[k]);
   settings.set('payment_methods', (methods.length ? methods : ['card']).join(','));
   req.flash('ok', 'Настройки сохранены. Новые цены уже на сайте.');

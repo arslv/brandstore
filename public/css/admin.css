@@ -86,3 +86,32 @@
 .tile-preview:hover { transform: none; }
 .color-field { display: flex; gap: 8px; align-items: center; }
 .color-field input[type="color"] { width: 46px; height: 46px; padding: 3px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); cursor: pointer; flex-shrink: 0; }
+
+/* «По магазинам»: карточка магазина, внутри — покупатели и их товары */
+.bystore-filters { margin: -6px 0 16px; }
+.bystore-filters .chip { text-decoration: none; }
+.bystore-total { margin: 0 0 18px; }
+.bystore { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 6px; margin-bottom: 20px; }
+.bystore__head { display: flex; align-items: center; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.bystore__logo { width: 132px; height: 60px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 6px 10px; background: var(--tile-bg, #FFFFFF); color: var(--tile-fg, var(--ink)); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.bystore__logo .brand-tile__name { font-size: 18px; line-height: 1; transition: none; }
+.bystore__title { flex: 1; min-width: 200px; }
+.bystore__title h2 { margin: 0 0 4px; font-size: 20px; }
+.bystore__cust { padding: 14px 0 10px; }
+.bystore__cust + .bystore__cust { border-top: 1px dashed var(--line-strong); }
+.bystore__who { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.bystore__orders { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* колонки у всех покупателей одинаковые */
+.bystore .table { table-layout: fixed; width: 100%; }
+.bystore .table th:nth-child(1) { width: 64px; }
+.bystore .table th:nth-child(3) { width: 110px; }
+.bystore .table th:nth-child(4) { width: 140px; }
+.bystore .table th:nth-child(5) { width: 80px; }
+.bystore .table th:nth-child(6) { width: 110px; }
+.bystore .table th:nth-child(7) { width: 140px; }
+.bystore .table td:nth-child(2) { overflow-wrap: anywhere; }
+
+/* ---------- Балансы ---------- */
+.balance-big { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.balance-big b { font-size: 28px; letter-spacing: -0.02em; }
+.table tr.is-out td { opacity: .55; }

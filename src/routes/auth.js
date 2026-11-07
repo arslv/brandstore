@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const db = require('../db');
+const { LEGAL_VERSION } = require('../lib/format');
 const { mergeGuestCart } = require('../services/cart');
 
 const router = express.Router();
@@ -60,8 +61,9 @@ router.post('/register', limiter, (req, res) => {
   if (Object.keys(errors).length) {
     return res.status(400).render('auth/register', { title: 'Регистрация', values, errors });
   }
-  const info = db.prepare('INSERT INTO users (email, password_hash, name, phone) VALUES (?, ?, ?, ?)')
-    .run(values.email, bcrypt.hashSync(password, 10), values.name, values.phone);
+  // pd_consent_at / pd_consent_version — подтверждение согласия на обработку ПДн (152-ФЗ)
+  const info = db.prepare("INSERT INTO users (email, password_hash, name, phone, pd_consent_at, pd_consent_version) VALUES (?, ?, ?, ?, datetime('now'), ?)")
+    .run(values.email, bcrypt.hashSync(password, 10), values.name, values.phone, LEGAL_VERSION);
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
   signIn(req, res, user);
 });

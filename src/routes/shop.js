@@ -5,14 +5,14 @@ const crypto = require('crypto');
 const multer = require('multer');
 const db = require('../db');
 const config = require('../config');
-const pricing = require('../lib/pricing');
 const yookassa = require('../lib/yookassa');
-const { DELIVERY_METHODS } = require('../lib/format');
+const { DELIVERY_METHODS, LEGAL_VERSION } = require('../lib/format');
 const { safeUrl, findStoreForLink, bareHost } = require('../lib/urls');
 const { requireAuth } = require('../middleware');
 const { getCart } = require('../services/cart');
 const orders = require('../services/orders');
 const payments = require('../services/payments');
+const balance = require('../services/balance');
 const { decorate, PRODUCT_SELECT } = require('./public');
 
 const router = express.Router();
@@ -117,19 +117,26 @@ router.post('/cart/remove/:id', (req, res) => {
   res.redirect('/cart');
 });
 
-// ---------- Оформление ----------
+// ---------- Оформление: заказ сразу оплачивается с баланса ----------
+// Не хватает денег — сохраняем заполненную форму (session.checkoutDraft) и ведём на пополнение ровно на недостающую сумму,
+// после оплаты возвращаем сюда же.
+function checkoutView(req, cart, values, errors = {}) {
+  const bal = balance.get(req.user.id);
+  const shortfall = Math.max(0, cart.total - bal);
+  return { title: 'Оформление заказа', cart, DELIVERY_METHODS, errors, values, balance: bal, shortfall, topup: Math.max(balance.MIN_TOPUP, shortfall) };
+}
+
 router.get('/checkout', requireAuth, (req, res) => {
   const cart = getCart(req.cartOwner);
   if (!cart.items.length) return res.redirect('/cart');
   const u = req.user;
-  res.render('checkout', {
-    title: 'Оформление заказа', cart, DELIVERY_METHODS, errors: {},
-    methods: payments.enabledMethods(), payFlow: payments.payFlow(), payMode: payments.mode(),
-    values: { name: u.name, phone: u.phone, email: u.email, city: u.city, address: u.address, delivery: 'pickup', comment: '', method: payments.enabledMethods()[0].key },
-  });
+  const draft = req.session.checkoutDraft || {};
+  res.render('checkout', checkoutView(req, cart, {
+    name: u.name, phone: u.phone, email: u.email, city: u.city, address: u.address, delivery: 'pickup', comment: '', ...draft,
+  }));
 });
 
-router.post('/checkout', requireAuth, async (req, res) => {
+router.post('/checkout', requireAuth, (req, res) => {
   const cart = getCart(req.cartOwner);
   if (!cart.items.length) return res.redirect('/cart');
   const v = {
@@ -140,33 +147,34 @@ router.post('/checkout', requireAuth, async (req, res) => {
     address: String(req.body.address || '').trim().slice(0, 300),
     delivery: DELIVERY_METHODS[req.body.delivery] ? req.body.delivery : 'pickup',
     comment: String(req.body.comment || '').trim().slice(0, 1000),
-    method: String(req.body.method || ''),
   };
-  const instant = payments.payFlow() === 'instant';
   const errors = {};
   if (!v.name) errors.name = 'Укажите имя и фамилию получателя.';
   if (v.phone.replace(/\D/g, '').length < 10) errors.phone = 'Укажите телефон для связи.';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)) errors.email = 'Проверьте адрес почты.';
   if (!v.city) errors.city = 'Укажите город.';
   if (!v.address) errors.address = v.delivery === 'pickup' ? 'Укажите адрес пункта выдачи.' : 'Укажите адрес доставки.';
-  if (!req.body.agree) errors.agree = 'Подтвердите согласие с условиями.';
-  if (instant && !payments.enabledMethods().some((m) => m.key === v.method)) errors.method = 'Выберите способ оплаты.';
+  if (!req.body.agree) errors.agree = 'Примите условия оферты.';
+  if (!req.body.agree_pd) errors.agree_pd = 'Нужно согласие на обработку персональных данных.';
   if (Object.keys(errors).length) {
-    return res.status(400).render('checkout', {
-      title: 'Оформление заказа', cart, DELIVERY_METHODS, errors, values: v,
-      methods: payments.enabledMethods(), payFlow: payments.payFlow(), payMode: payments.mode(),
-    });
+    return res.status(400).render('checkout', checkoutView(req, cart, { ...v, agree: !!req.body.agree, agree_pd: !!req.body.agree_pd }, errors));
   }
   // Сохраним контакты в профиль, чтобы не вводить заново
   db.prepare('UPDATE users SET name = ?, phone = ?, city = ?, address = ? WHERE id = ?').run(v.name, v.phone, v.city, v.address, req.user.id);
-  const { method, ...form } = v;
-  const order = orders.createFromCart({ owner: req.cartOwner, userId: req.user.id, form, status: instant ? 'awaiting_payment' : 'new' });
-  if (instant) {
-    const r = await payments.start(order, method);
-    if (r.redirect) return res.redirect(r.redirect);
-    req.flash('error', r.error);
-    return res.redirect(`/pay/${order.id}`);
+  const toTopup = (shortfall) => {
+    req.session.checkoutDraft = { ...v, agree: true, agree_pd: true };
+    res.redirect(`/balance?amount=${Math.max(balance.MIN_TOPUP, shortfall)}&next=${encodeURIComponent('/checkout')}`);
+  };
+  let order;
+  try {
+    order = orders.createFromCart({ owner: req.cartOwner, userId: req.user.id, form: v });
+  } catch (e) {
+    if (e.code === 'balance') return toTopup(e.shortfall);
+    throw e;
   }
+  delete req.session.checkoutDraft;
+  // когда и с какой редакцией оферты и согласия оформлен заказ
+  db.prepare("UPDATE orders SET consent_at = datetime('now'), consent_version = ? WHERE id = ?").run(LEGAL_VERSION, order.id);
   res.redirect(`/account/orders/${order.id}?new=1`);
 });
 
@@ -195,63 +203,109 @@ router.get('/account', requireAuth, (req, res) => {
   res.render('account/orders', { title: 'Мои заказы', orders: list });
 });
 
-router.get('/account/orders/:id', requireAuth, async (req, res, next) => {
+router.get('/account/orders/:id', requireAuth, (req, res, next) => {
   const order = orders.getOrder(req.params.id);
   if (!order || (order.user_id !== req.user.id && req.user.role !== 'admin')) return next();
-  // Возврат со страницы оплаты ЮKassa — сверяем статус платежа
-  if (req.query.paid && order.payment_id && yookassa.enabled() && order.status === 'awaiting_payment') {
-    try {
-      const p = await yookassa.getPayment(order.payment_id);
-      if (p.status === 'succeeded') payments.markPaid(order.id, `Оплата получена: ${payments.methodLabel(order.payment_method) || 'ЮKassa'}`);
-      return res.redirect(`/account/orders/${order.id}?paid=1`);
-    } catch (e) { console.error('[yookassa]', e.message); }
-  }
   res.render('account/order', {
-    title: `Заказ ${order.number}`, order, isNew: Boolean(req.query.new), justPaid: Boolean(req.query.paid) && order.status === 'paid',
-    DELIVERY_METHODS, payMode: payments.mode(), methodLabel: payments.methodLabel(order.payment_method),
+    title: `Заказ ${order.number}`, order, isNew: Boolean(req.query.new), DELIVERY_METHODS,
+    balance: balance.get(req.user.id), methodLabel: payments.methodLabel(order.payment_method),
   });
 });
 
-// ---------- Оплата ----------
-function ownOrder(req) {
+// Заказ, оформленный до перехода на баланс, — оплатить с баланса
+router.post('/account/orders/:id/pay', requireAuth, (req, res, next) => {
   const order = orders.getOrder(req.params.id);
-  if (!order || order.user_id !== req.user.id) return null;
-  return order;
-}
-
-router.get('/pay/:id', requireAuth, (req, res, next) => {
-  const order = ownOrder(req);
-  if (!order) return next();
+  if (!order || order.user_id !== req.user.id) return next();
   if (order.status !== 'awaiting_payment') return res.redirect(`/account/orders/${order.id}`);
-  res.render('pay', {
-    title: `Оплата заказа ${order.number}`, order, methods: payments.enabledMethods(), payMode: payments.mode(),
-    failed: Boolean(req.query.failed), selected: order.payment_method || payments.enabledMethods()[0].key,
+  try {
+    orders.payLegacy(order.id, req.user.id);
+  } catch (e) {
+    if (e.code !== 'balance') throw e;
+    return res.redirect(`/balance?amount=${Math.max(balance.MIN_TOPUP, e.shortfall)}&next=${encodeURIComponent(`/account/orders/${order.id}`)}`);
+  }
+  res.redirect(`/account/orders/${order.id}?new=1`);
+});
+
+// ---------- Баланс ----------
+// Куда вернуть после пополнения: только свои страницы оформления и заказа
+const safeNext = (v) => {
+  const s = String(v || '');
+  return s === '/checkout' || /^\/account\/orders\/\d+$/.test(s) ? s : '';
+};
+
+router.get('/balance', requireAuth, (req, res) => {
+  const amount = balance.parseAmount(req.query.amount);
+  const next = safeNext(req.query.next);
+  if (next) req.session.topupNext = next;
+  else if (!req.query.request && !req.query.failed) delete req.session.topupNext;
+  const request = req.query.request ? balance.getOp(req.query.request) : null;
+  res.render('balance', {
+    title: 'Баланс', balance: balance.get(req.user.id), ops: balance.history(req.user.id),
+    methods: payments.enabledMethods(), payMode: payments.mode(), MIN: balance.MIN_TOPUP, MAX: balance.MAX_TOPUP,
+    amount: amount >= balance.MIN_TOPUP ? amount : '', next: req.session.topupNext || '',
+    request: request && request.user_id === req.user.id && request.status === 'pending' ? request : null,
+    failed: Boolean(req.query.failed), topped: Boolean(req.query.topped), method: payments.enabledMethods()[0].key,
+    methodLabel: payments.methodLabel,
   });
 });
 
-router.post('/pay/:id', requireAuth, async (req, res, next) => {
-  const order = ownOrder(req);
-  if (!order) return next();
-  const r = await payments.start(order, String(req.body.method || ''));
+router.post('/balance/topup', requireAuth, async (req, res) => {
+  const amount = balance.parseAmount(req.body.amount);
+  const r = await payments.startTopup(req.user, amount, String(req.body.method || ''));
   if (r.redirect) return res.redirect(r.redirect);
   req.flash('error', r.error);
-  res.redirect(order.status === 'awaiting_payment' ? `/pay/${order.id}` : `/account/orders/${order.id}`);
+  const q = new URLSearchParams();
+  if (amount) q.set('amount', amount);
+  if (req.session.topupNext) q.set('next', req.session.topupNext);
+  res.redirect(`/balance${q.toString() ? '?' + q : ''}`);
 });
+
+function ownTopup(req) {
+  const op = balance.getOp(req.params.id);
+  return op && op.user_id === req.user.id && op.type === 'topup' ? op : null;
+}
+
+// После пополнения: обратно к оформлению/заказу, если пришли оттуда
+function afterTopup(req, res) {
+  const next = req.session.topupNext;
+  delete req.session.topupNext;
+  if (next) {
+    req.flash('ok', 'Баланс пополнен.');
+    return res.redirect(next);
+  }
+  res.redirect('/balance?topped=1');
+}
 
 // Тестовая страница банка (режим «Тестовая оплата»)
-router.get('/pay/:id/demo', requireAuth, (req, res, next) => {
-  const order = ownOrder(req);
-  if (!order || payments.mode() !== 'demo' || !order.payment_id.startsWith('demo_')) return next();
-  if (order.status !== 'awaiting_payment') return res.redirect(`/account/orders/${order.id}`);
-  res.render('pay-demo', { title: 'Тестовая оплата', order, methodLabel: payments.methodLabel(order.payment_method) });
+router.get('/balance/topup/:id/demo', requireAuth, (req, res, next) => {
+  const op = ownTopup(req);
+  if (!op || op.provider !== 'demo') return next();
+  if (op.status !== 'pending') return res.redirect('/balance');
+  res.render('pay-demo', { title: 'Тестовая оплата', op, methodLabel: payments.methodLabel(op.method) });
 });
 
-router.post('/pay/:id/demo', requireAuth, (req, res, next) => {
-  const order = ownOrder(req);
-  if (!order || payments.mode() !== 'demo' || !order.payment_id.startsWith('demo_')) return next();
-  if (req.body.result !== 'success') return res.redirect(`/pay/${order.id}?failed=1`);
-  payments.markPaid(order.id, `Оплачено: ${payments.methodLabel(order.payment_method)} (тестовый режим)`);
-  res.redirect(`/account/orders/${order.id}?paid=1`);
+router.post('/balance/topup/:id/demo', requireAuth, (req, res, next) => {
+  const op = ownTopup(req);
+  if (!op || op.provider !== 'demo') return next();
+  if (req.body.result !== 'success') {
+    balance.failTopup(op.id, 'Отменено на тестовой странице');
+    return res.redirect('/balance?failed=1');
+  }
+  balance.confirmTopup(op.id, 'Тестовый режим');
+  afterTopup(req, res);
+});
+
+// Возврат со страницы ЮKassa — сверяем статус платежа (уведомление может прийти позже)
+router.get('/balance/topup/:id/return', requireAuth, async (req, res, next) => {
+  const op = ownTopup(req);
+  if (!op || op.provider !== 'yookassa') return next();
+  let done = op.status === 'done';
+  try { done = await payments.syncYookassaTopup(op); } catch (e) { console.error('[yookassa]', e.message); }
+  if (done) return afterTopup(req, res);
+  const fresh = balance.getOp(op.id);
+  if (fresh.status === 'failed') return res.redirect('/balance?failed=1');
+  req.flash('info', 'Ждём подтверждения оплаты от банка — обычно это меньше минуты. Обновите страницу.');
+  res.redirect('/balance');
 });
 
 router.get('/account/profile', requireAuth, (req, res) => {
@@ -270,7 +324,7 @@ router.post('/account/profile', requireAuth, (req, res) => {
   res.redirect('/account/profile');
 });
 
-// ---------- Уведомления ЮKassa ----------
+// ---------- Уведомления ЮKassa: пополнение баланса ----------
 router.post('/webhooks/yookassa', async (req, res) => {
   res.sendStatus(200);
   try {
@@ -278,11 +332,12 @@ router.post('/webhooks/yookassa', async (req, res) => {
     if (!id || !yookassa.enabled()) return;
     // Не доверяем телу уведомления — запрашиваем платёж у ЮKassa
     const p = await yookassa.getPayment(id);
-    const orderId = p.metadata && p.metadata.order_id;
-    if (!orderId) return;
-    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
-    if (!order || order.payment_id !== p.id) return;
-    if (p.status === 'succeeded') payments.markPaid(order.id, `Оплата получена: ${payments.methodLabel(order.payment_method) || 'ЮKassa'}`);
+    const topupId = p.metadata && p.metadata.topup_id;
+    if (!topupId) return;
+    const op = balance.getOp(topupId);
+    if (!op || op.payment_id !== p.id) return;
+    if (p.status === 'succeeded') balance.confirmTopup(op.id);
+    else if (p.status === 'canceled') balance.failTopup(op.id, (p.cancellation_details && p.cancellation_details.reason) || 'canceled');
   } catch (e) {
     console.error('[yookassa webhook]', e.message);
   }

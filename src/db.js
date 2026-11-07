@@ -6,7 +6,7 @@ const config = require('./config');
 const storesData = require('./data/stores');
 const { beautySubcats } = storesData;
 const { slugify, regionPrefix, safeUrl, rootDomain } = require('./lib/urls');
-const { NO_RANK, formatHomeTabs } = require('./lib/format');
+const { NO_RANK, formatHomeTabs, parseHomeTabs } = require('./lib/format');
 
 fs.mkdirSync(path.dirname(config.dbFile), { recursive: true });
 const db = new Database(config.dbFile);
@@ -151,6 +151,29 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 );
 
+-- Баланс покупателя (с 07.11.2026). Баланс = сумма amount_rub по операциям со status = 'done'.
+-- topup  — пополнение (+): pending, пока платёж не прошёл; done; failed — платёж отменён;
+-- order  — оплата заказа (−); refund — возврат по заказу на баланс (+); adjust — корректировка менеджером (±).
+-- settled_rub — сколько из пополнения уже зачтено в оплату заказов (для чеков зачёта аванса по 54-ФЗ).
+CREATE TABLE IF NOT EXISTS balance_ops (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  type TEXT NOT NULL,
+  amount_rub INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'done',
+  order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+  method TEXT NOT NULL DEFAULT '',
+  provider TEXT NOT NULL DEFAULT '',
+  payment_id TEXT NOT NULL DEFAULT '',
+  settled_rub INTEGER NOT NULL DEFAULT 0,
+  note TEXT NOT NULL DEFAULT '',
+  created_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  done_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_balance_user ON balance_ops(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_balance_order ON balance_ops(order_id);
+
 CREATE TABLE IF NOT EXISTS sessions (
   sid TEXT PRIMARY KEY,
   sess TEXT NOT NULL,
@@ -179,8 +202,18 @@ for (const col of ['sel_price', 'sel_old_price', 'sel_title', 'sel_image', 'sel_
 addColumn('stores', 'home_tabs', "TEXT NOT NULL DEFAULT ''");
 // v6: плитка бренда на главной — фон, цвет надписи, шрифт, надпись (пусто — название магазина)
 for (const col of ['tile_bg', 'tile_fg', 'tile_font', 'tile_text']) addColumn('stores', col, "TEXT NOT NULL DEFAULT ''");
+// согласия: когда и с какой редакцией документов (152-ФЗ: оператор должен уметь подтвердить согласие)
+addColumn('users', 'pd_consent_at', 'TEXT');
+addColumn('users', 'pd_consent_version', "TEXT NOT NULL DEFAULT ''");
+addColumn('orders', 'consent_at', 'TEXT');
+addColumn('orders', 'consent_version', "TEXT NOT NULL DEFAULT ''");
+// сколько по заказу вернули на баланс (товар закончился, отмена)
+addColumn('orders', 'refunded_rub', 'INTEGER NOT NULL DEFAULT 0');
 
 // ---------- Настройки по умолчанию ----------
+// Текст для покупателя в режиме «Перевод по реквизитам» (показывается после заявки на пополнение)
+const PAYMENT_INSTRUCTIONS = 'Реквизиты для перевода пришлём на почту. Деньги зачислим на баланс, как только они поступят.';
+const OLD_PAYMENT_INSTRUCTIONS = 'После проверки заказа менеджер пришлёт ссылку на оплату. Оплатить можно картой любого российского банка или через СБП.';
 const DEFAULT_SETTINGS = {
   markup_pct: '15',
   rate_mode: 'auto', // auto — курс ЦБ, manual — ручной
@@ -188,16 +221,20 @@ const DEFAULT_SETTINGS = {
   rate_eur_auto: '',
   rate_updated_at: '',
   delivery_fee_eur: '50',
+  // реквизиты продавца для документов и подвала
+  legal_name: '',
+  legal_ogrn: '',
+  legal_inn: '',
+  legal_address: '',
   notify_email: '',
   eu_limit_eur: '300',
-  payment_mode: 'demo', // demo — тестовая оплата, link — ссылка от менеджера, yookassa — ЮKassa
-  pay_flow: 'after_check', // after_check — оплата после проверки менеджером, instant — сразу при оформлении
+  // как пополняется баланс: demo — тестовая страница банка, manual — перевод по реквизитам, менеджер зачисляет вручную, yookassa — ЮKassa
+  payment_mode: 'demo',
   payment_methods: 'card,sbp,sberpay,tpay,yoomoney',
   shop_email: 'info@brandstore.ru',
   shop_phone: '',
   shop_telegram: '',
-  payment_instructions:
-    'После проверки заказа менеджер пришлёт ссылку на оплату. Оплатить можно картой любого российского банка или через СБП.',
+  payment_instructions: PAYMENT_INSTRUCTIONS,
 };
 const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
 for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) insertSetting.run(k, v);
@@ -418,6 +455,57 @@ if (Number((db.prepare("SELECT value FROM settings WHERE key = 'schema_version'"
     db.prepare("UPDATE settings SET value = '15' WHERE key = 'markup_pct'").run();
     db.prepare("DELETE FROM settings WHERE key = 'delivery_fee_rub'").run();
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '7')").run();
+  });
+  tx();
+}
+
+// ---------- Версия 8: оплата с баланса (правки владельца 07.11.2026) ----------
+// Этапа «проверяем наличие» и отметки «выкуплен» больше нет: заказ оплачивается с баланса при оформлении,
+// дальше — «отправлен» с трек-номером и «доставлен». Старые заказы: «новый» → «ожидает оплаты» (оплачивается с баланса
+// из личного кабинета), «выкуплен» → «оплачен». История статусов (order_events) не меняется.
+if (Number((db.prepare("SELECT value FROM settings WHERE key = 'schema_version'").get() || {}).value || 1) < 8) {
+  const tx = db.transaction(() => {
+    db.prepare("UPDATE orders SET status = 'awaiting_payment' WHERE status = 'new'").run();
+    db.prepare("UPDATE orders SET status = 'paid' WHERE status = 'purchased'").run();
+    db.prepare("UPDATE order_items SET item_status = 'pending' WHERE item_status IN ('available', 'purchased')").run();
+    db.prepare("DELETE FROM settings WHERE key = 'pay_flow'").run();
+    db.prepare("UPDATE settings SET value = 'manual' WHERE key = 'payment_mode' AND value = 'link'").run();
+    db.prepare('UPDATE settings SET value = ? WHERE key = ? AND value = ?').run(PAYMENT_INSTRUCTIONS, 'payment_instructions', OLD_PAYMENT_INSTRUCTIONS);
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '8')").run();
+  });
+  tx();
+}
+
+// ---------- Версия 9: вкладка «Косметика» на главной (просьба владельца 07.11.2026) ----------
+// На вкладку попадают все магазины с категорией «Красота»: первые 12 — в этом порядке (первый экран), остальные — по алфавиту.
+// Плитки в цветах логотипов — только у магазинов, где плитка ещё не настроена (как в v6).
+const BEAUTY_TAB = ['sephora', 'douglas', 'notino', 'kiko-milano', 'lush', 'the-body-shop', 'perfumes-and-companhia', 'byredo',
+  'maison-francis-kurkdjian', 'kilian-paris', 'carolina-herrera', 'claus-porto'];
+const BEAUTY_TILES = {
+  douglas: ['#FFFFFF', '#000000', 'geometric', 'DOUGLAS'],
+  notino: ['#FFFFFF', '#000000', 'heavy', 'notino'],
+  'kiko-milano': ['#FFFFFF', '#000000', 'geometric', 'KIKO MILANO'],
+  lush: ['#000000', '#FFFFFF', 'heavy', 'LUSH'],
+  'the-body-shop': ['#004236', '#FFFFFF', 'geometric', 'THE BODY SHOP'],
+  'perfumes-and-companhia': ['#000000', '#FFFFFF', 'didone', 'Perfumes & Companhia'],
+  'maison-francis-kurkdjian': ['#FFFFFF', '#000000', 'didone', 'MAISON FRANCIS KURKDJIAN'],
+  'kilian-paris': ['#000000', '#FFFFFF', 'didone', 'KILIAN PARIS'],
+  'carolina-herrera': ['#FFFFFF', '#000000', 'didone', 'CAROLINA HERRERA'],
+};
+if (Number((db.prepare("SELECT value FROM settings WHERE key = 'schema_version'").get() || {}).value || 1) < 9) {
+  const tx = db.transaction(() => {
+    const upd = db.prepare('UPDATE stores SET home_tabs = ? WHERE id = ?');
+    for (const s of db.prepare("SELECT id, slug, home_tabs FROM stores WHERE (',' || categories || ',') LIKE '%,beauty,%'").all()) {
+      const tabs = parseHomeTabs(s.home_tabs);
+      if (tabs.beauty) continue;
+      const i = BEAUTY_TAB.indexOf(s.slug);
+      tabs.beauty = i >= 0 ? i + 1 : NO_RANK;
+      upd.run(formatHomeTabs(tabs), s.id);
+    }
+    const tile = db.prepare(`UPDATE stores SET tile_bg = ?, tile_fg = ?, tile_font = ?, tile_text = ?
+      WHERE slug = ? AND tile_bg = '' AND tile_fg = '' AND tile_font = '' AND tile_text = ''`);
+    for (const [slug, [bg, fg, font, text]] of Object.entries(BEAUTY_TILES)) tile.run(bg, fg, font, text, slug);
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '9')").run();
   });
   tx();
 }

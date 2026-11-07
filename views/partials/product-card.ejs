@@ -11,7 +11,7 @@
       <span class="price__now <%= p.discount ? 'is-sale' : '' %>"><%= fmt.rub(p.price_rub) %></span>
       <% if (p.old_rub) { %><span class="price__old"><%= fmt.rub(p.old_rub) %></span><% } %>
     </div>
-    <span class="card__brand"><%= p.store_name || 'Brand Store' %></span>
+    <span class="card__brand"><%= p.store_name || 'QLIC' %></span>
     <a class="card__title card__link" href="/product/<%= p.id %>"><%= p.title %></a>
   </div>
 </article>

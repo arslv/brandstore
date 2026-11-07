@@ -25,7 +25,7 @@
         <span class="field__hint">Не короче 8 символов.</span>
         <% if (errors.password) { %><span class="field__error"><%= errors.password %></span><% } %>
       </div>
-      <label class="checkbox" style="margin-bottom:16px"><input type="checkbox" name="agree" value="1"><span>Согласен на обработку персональных данных</span></label>
+      <label class="checkbox" style="margin-bottom:16px"><input type="checkbox" name="agree" value="1"><span>Даю <a class="link" href="/consent" target="_blank">согласие на обработку персональных данных</a></span></label>
       <% if (errors.agree) { %><p class="field__error" style="margin:-8px 0 16px"><%= errors.agree %></p><% } %>
       <button class="btn btn--block" type="submit">Создать аккаунт</button>
     </form>

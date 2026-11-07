@@ -76,6 +76,20 @@
     input.addEventListener('input', upd);
   });
 
+  // ---------- Пополнение баланса: быстрые суммы и сумма на кнопке ----------
+  $$('form[data-topup]').forEach((form) => {
+    const input = $('[data-topup-amount]', form), label = $('[data-topup-label]', form);
+    const quick = $$('[data-topup-quick]', form);
+    const upd = () => {
+      const n = Math.round(parseFloat(input.value) || 0);
+      label.textContent = n > 0 ? 'Пополнить на ' + fmtRub(n) : 'Пополнить';
+      quick.forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.topupQuick) === n)));
+    };
+    quick.forEach((b) => b.addEventListener('click', () => { input.value = b.dataset.topupQuick; upd(); }));
+    input.addEventListener('input', upd);
+    upd();
+  });
+
   // ---------- Избранное ----------
   document.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-fav]');
@@ -153,14 +167,15 @@
     // '' — ссылку ещё не проверяли, ok — магазин из списка, other — не та версия сайта, unknown — магазина нет в списке, bad — не ссылка
     let storeState = '';
     let parsing = false;
+    let pendingSubmit = false; // нажали «Добавить», пока цена ещё загружалась — проверим форму снова, когда загрузится
 
     const setBlocked = (on) => submits.forEach((b) => { b.disabled = on; });
     const clearErrors = () => {
-      if (formError) formError.textContent = '';
+      if (formError) { formError.textContent = ''; formError.classList.remove('is-info'); }
       $$('.is-invalid', linkForm).forEach((el) => el.classList.remove('is-invalid'));
     };
-    const showError = (msg, field) => {
-      if (formError) formError.textContent = msg;
+    const showError = (msg, field, info) => {
+      if (formError) { formError.textContent = msg; formError.classList.toggle('is-info', !!info); }
       if (field) { field.classList.add('is-invalid'); field.focus(); }
     };
 
@@ -217,12 +232,20 @@
     const resetParse = () => {
       parseSeq += 1;
       parsing = false;
+      pendingSubmit = false;
       parseBox.hidden = true;
       sizeChips.innerHTML = '';
       colorChips.innerHTML = '';
       sizeDefault.hidden = false;
       imageUrl.value = '';
       parsedPrice.value = '';
+    };
+
+    const afterParse = () => {
+      if (!pendingSubmit) return;
+      pendingSubmit = false;
+      clearErrors();
+      linkForm.requestSubmit();
     };
 
     const runParse = async (url) => {
@@ -250,6 +273,7 @@
           ? 'Цена не в евро — нужна португальская версия сайта'
           : (FAIL_TEXT[r.reason] || FAIL_TEXT.no_price);
         if (r.ok) setIfAuto(titleInput, 'title', r.title);
+        afterParse();
         return;
       }
 
@@ -281,6 +305,7 @@
         else if (r.colors.length === 1) setIfAuto(colorInput, 'color', r.colors[0].name);
         renderChips(colorChips, r.colors, colorInput);
       }
+      afterParse();
     };
 
     const warn = (html) => {
@@ -359,7 +384,7 @@
       if (storeState === 'unknown' || storeState === 'bad') { urlInput.focus(); return; }
       const eur = parseFloat(String(price.value).replace(',', '.'));
       if (!(eur > 0)) {
-        if (parsing) showError('Секунду, смотрим цену…');
+        if (parsing) { pendingSubmit = true; showError('Секунду, смотрим цену…', null, true); }
         else showError('Укажите цену', price);
         return;
       }

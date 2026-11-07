@@ -51,7 +51,7 @@
 
       <ul class="info-list">
         <li><%- icon('shield') %><span>Покупаем только в официальном магазине <%= store ? store.name : '' %> на португальском сайте.</span></li>
-        <li><%- icon('card') %><span>Оплата после проверки наличия — картой российского банка или через СБП.</span></li>
+        <li><%- icon('wallet') %><span>Оплата с баланса — пополняйте картой российского банка или через СБП.</span></li>
         <li><%- icon('truck') %><span>Доставка в Россию с трек-номером<%= quote.deliveryEur ? ' — ' + fmt.eur(quote.deliveryEur) + ' за заказ' : '' %>.</span></li>
         <% if (product.source_url) { %><li><%- icon('external') %><span><a class="link" href="<%= product.source_url %>" target="_blank" rel="noopener nofollow">Посмотреть товар на сайте магазина</a></span></li><% } %>
       </ul>
