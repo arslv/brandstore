@@ -363,8 +363,8 @@ router.post('/settings', (req, res) => {
   settings.set('rate_mode', b.rate_mode === 'manual' ? 'manual' : 'auto');
   const manual = num(b.rate_eur_manual, 1, 100000);
   if (manual !== null) settings.set('rate_eur_manual', manual);
-  const delivery = num(b.delivery_fee_rub, 0, 1000000);
-  if (delivery !== null) settings.set('delivery_fee_rub', Math.round(delivery));
+  const delivery = num(b.delivery_fee_eur, 0, 10000);
+  if (delivery !== null) settings.set('delivery_fee_eur', delivery);
   const euLimit = num(b.eu_limit_eur, 0, 1000000);
   if (euLimit !== null) settings.set('eu_limit_eur', euLimit);
   for (const k of ['notify_email', 'shop_email', 'shop_phone', 'shop_telegram']) settings.set(k, String(b[k] || '').trim().slice(0, 200));

@@ -77,10 +77,11 @@
         <div class="summary__row small"><span><%= it.store_name ? it.store_name + ' · ' : '' %><%= it.title %> <span class="muted">× <%= it.qty %></span></span><span class="nowrap"><%= fmt.rub(it.line_rub) %></span></div>
       <% }) %>
       <div class="summary__row" style="border-top:1px solid var(--line);margin-top:8px;padding-top:12px"><span>Товары</span><span><%= fmt.rub(cart.subtotal) %></span></div>
-      <div class="summary__row"><span>Доставка</span><span><%= cart.delivery ? fmt.rub(cart.delivery) : 'посчитает менеджер' %></span></div>
+      <div class="summary__row"><span>Доставка в Россию<% if (cart.quote.deliveryEur) { %> <span class="muted">· <%= fmt.eur(cart.quote.deliveryEur) %></span><% } %></span><span><%= cart.delivery ? fmt.rub(cart.delivery) : 'посчитает менеджер' %></span></div>
       <div class="summary__row summary__total"><span>Итого</span><span><%= fmt.rub(cart.total) %></span></div>
+      <% if (cart.smallOrder) { %><p class="summary__note"><%- icon('truck') %><span>Заказ из 1–2 товаров может доставляться дольше обычного</span></p><% } %>
       <button class="btn btn--block" type="submit"><%= payFlow === 'instant' ? 'Оформить и оплатить' : 'Оформить заказ' %></button>
-      <p class="muted small" style="margin:14px 0 0"><%= payFlow === 'instant' ? 'Сразу после оформления откроется оплата выбранным способом.' : 'После оформления мы проверим наличие и пришлём письмо на ' + (values.email || 'вашу почту') + '.' %></p>
+      <% if (cart.delivery) { %><p class="summary__hint">От количества товаров стоимость доставки не меняется</p><% } %>
     </aside>
   </form>
 </div>

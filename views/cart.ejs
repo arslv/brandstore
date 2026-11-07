@@ -50,8 +50,9 @@
       <aside class="panel summary">
         <p class="panel__title">Ваш заказ</p>
         <div class="summary__row"><span>Товары, <%= cart.count %> шт.</span><span><%= fmt.rub(cart.subtotal) %></span></div>
-        <div class="summary__row"><span>Доставка в Россию</span><span><%= cart.delivery ? fmt.rub(cart.delivery) : 'посчитает менеджер' %></span></div>
+        <div class="summary__row"><span>Доставка в Россию<% if (cart.quote.deliveryEur) { %> <span class="muted">· <%= fmt.eur(cart.quote.deliveryEur) %></span><% } %></span><span><%= cart.delivery ? fmt.rub(cart.delivery) : 'посчитает менеджер' %></span></div>
         <div class="summary__row summary__total"><span>Итого</span><span><%= fmt.rub(cart.total) %></span></div>
+        <% if (cart.smallOrder) { %><p class="summary__note"><%- icon('truck') %><span>Заказ из 1–2 товаров может доставляться дольше обычного</span></p><% } %>
         <a class="btn btn--block" href="/checkout">Перейти к оформлению</a>
         <p class="muted small" style="margin:14px 0 0">Сейчас оплачивать не нужно. Сначала проверим наличие и пришлём ссылку на оплату.</p>
       </aside>

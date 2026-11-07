@@ -1,6 +1,8 @@
 const db = require('../db');
 const pricing = require('../lib/pricing');
 
+const SMALL_ORDER = 3; // меньше 3 товаров — предупреждение о сроке доставки
+
 function getCart(owner) {
   const rows = db.prepare(`
     SELECT c.*, s.name AS store_name, s.slug AS store_slug, s.icon_domain, s.logo_path, s.region,
@@ -22,7 +24,8 @@ function getCart(owner) {
   });
   const subtotal = items.reduce((s, it) => s + it.line_rub, 0);
   const count = items.reduce((s, it) => s + it.qty, 0);
-  return { items, subtotal, delivery: q.delivery, total: subtotal + q.delivery, count, quote: q };
+  // Заказ из 1–2 товаров может ехать дольше: такие посылки собираются вместе с другими
+  return { items, subtotal, delivery: q.delivery, total: subtotal + q.delivery, count, quote: q, smallOrder: count > 0 && count < SMALL_ORDER };
 }
 
 function mergeGuestCart(guestOwner, userOwner) {

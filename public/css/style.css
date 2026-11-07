@@ -185,14 +185,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
    (на телефоне 3 + 1). Свёрнутая сетка (.is-collapsed) показывает 12 плиток (на телефоне 8), кнопка раскрывает
    остальные (app.js). Размер надписи подгоняет app.js (data-fit). */
 .brand-wall {
-  --tile-gap: clamp(6px, .8vw, 12px);
+  --tile-gap: 0px;
   --tile-h: clamp(96px, min(calc((100vh - var(--header-h) - 122px - 2 * var(--tile-gap)) / 2.55), calc((100vw - 48px - 3 * var(--tile-gap)) / 6)), 210px);
   padding: clamp(12px, 1.4vw, 20px) clamp(12px, 1.6vw, 24px) 0;
 }
 @supports (height: 100svh) {
   .brand-wall { --tile-h: clamp(96px, min(calc((100svh - var(--header-h) - 122px - 2 * var(--tile-gap)) / 2.55), calc((100vw - 48px - 3 * var(--tile-gap)) / 6)), 210px); }
 }
-.brand-grid { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--tile-gap); }
+/* Плитки вплотную, с острыми углами и тонкими линиями между ними — как таблица (эскиз владельца 07.11.2026) */
+.brand-grid { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--tile-gap); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
 .brand-grid.is-collapsed .brand-tile:nth-child(n+13) { display: none; }
 /* Растворение последнего видимого ряда — слой поверх, плавно исчезает при раскрытии */
 .brand-grid::after { content: ''; position: absolute; left: -4px; right: -4px; bottom: -2px; height: calc(var(--tile-h) + 6px); background: linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, .72) 42%, #fff 90%); pointer-events: none; opacity: 0; transition: opacity .3s ease; }
@@ -201,13 +202,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .brand-tile.is-revealing { animation: tile-in .34s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 24ms); }
 .brand-tile {
   position: relative; display: flex; align-items: center; justify-content: center; min-width: 0;
-  height: var(--tile-h, auto); padding: 6% 8%; border-radius: 16px; overflow: hidden;
+  height: var(--tile-h, auto); padding: 6% 8%; border-radius: 0; overflow: hidden;
+  border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
   background: var(--tile-bg, #FFFFFF); color: var(--tile-fg, var(--ink));
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);
-  transition: transform .25s ease, box-shadow .25s ease;
 }
-.brand-tile:hover { color: var(--tile-fg, var(--ink)); transform: translateY(-3px); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08), 0 14px 30px -18px rgba(0, 0, 0, .45); }
-.brand-tile__name { display: block; width: 100%; text-align: center; line-height: 1.02; font-weight: 700; font-size: clamp(18px, 3vw, 44px); letter-spacing: -0.01em; overflow-wrap: normal; word-break: keep-all; }
+.brand-tile:hover { color: var(--tile-fg, var(--ink)); }
+.brand-tile:hover .brand-tile__name { transform: scale(1.05); }
+.brand-tile__name { display: block; width: 100%; text-align: center; line-height: 1.02; transition: transform .25s ease; font-weight: 700; font-size: clamp(18px, 3vw, 44px); letter-spacing: -0.01em; overflow-wrap: normal; word-break: keep-all; }
 .brand-tile[data-font="didone"] .brand-tile__name { font-family: 'Bodoni Moda', 'Didot', Georgia, serif; font-weight: 600; letter-spacing: .01em; }
 .brand-tile[data-font="italic"] .brand-tile__name { font-family: 'Bodoni Moda', 'Didot', Georgia, serif; font-style: italic; font-weight: 700; }
 .brand-tile[data-font="geometric"] .brand-tile__name { font-family: 'Jost', 'Futura', var(--font); font-weight: 600; letter-spacing: .04em; }
@@ -424,6 +425,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .summary__row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
 .summary__total { font-size: 20px; font-weight: 700; border-top: 1px solid var(--line); margin-top: 8px; padding-top: 14px; }
 .summary .btn { margin-top: 18px; }
+.summary__hint { margin: 12px 0 0; font-size: 13px; color: var(--ink-3); text-align: center; }
+.summary__note { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0 0; padding: 12px 14px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); font-size: 13px; line-height: 1.4; }
+.summary__note svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
 .radio-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
 .radio-card { border: 1px solid var(--line-strong); border-radius: 12px; padding: 14px; display: flex; gap: 10px; cursor: pointer; background: var(--surface); }
 .radio-card:has(input:checked) { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
@@ -485,7 +489,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .products, .products--4 { grid-template-columns: repeat(3, 1fr); }
   .rail__track { grid-auto-columns: calc((100% - 2 * 16px) / 3); }
   .rail__btn { display: none; }
-  .brand-tile { border-radius: 12px; }
   .pay { grid-template-columns: 1fr; }
   .catalog { grid-template-columns: 1fr; }
   .filters { position: static; display: grid; gap: 8px; margin-bottom: 8px; }
@@ -507,12 +510,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .topbar { font-size: 12px; }
   .products, .products--4 { grid-template-columns: repeat(2, 1fr); gap: 20px 10px; }
   .rail__track { grid-auto-columns: 44%; gap: 10px; }
-  .brand-wall { --tile-gap: 8px; --tile-h: clamp(80px, min(calc((100vh - var(--header-h) - 110px - 3 * var(--tile-gap)) / 3.55), calc((100vw - 24px - var(--tile-gap)) / 2 / 1.5)), 140px); }
+  .brand-wall { --tile-gap: 0px; --tile-h: clamp(80px, min(calc((100vh - var(--header-h) - 110px - 3 * var(--tile-gap)) / 3.55), calc((100vw - 24px - var(--tile-gap)) / 2 / 1.5)), 140px); }
   @supports (height: 100svh) {
     .brand-wall { --tile-h: clamp(80px, min(calc((100svh - var(--header-h) - 110px - 3 * var(--tile-gap)) / 3.55), calc((100vw - 24px - var(--tile-gap)) / 2 / 1.5)), 140px); }
   }
   .brand-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .brand-tile { border-radius: 10px; }
   .brand-grid.is-collapsed .brand-tile:nth-child(n+9) { display: none; }
   .paste { padding: 20px; }
   .paste__bar { flex-direction: column; }

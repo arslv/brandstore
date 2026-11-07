@@ -12,9 +12,9 @@
           <span class="field__hint">Применяется ко всем ценам на сайте сразу после сохранения. В уже оформленных заказах наценка не меняется.</span>
         </div>
         <div class="field">
-          <label for="delivery_fee_rub">Доставка в Россию, ₽ за заказ</label>
-          <input class="input" id="delivery_fee_rub" name="delivery_fee_rub" type="number" min="0" value="<%= s.delivery_fee_rub %>">
-          <span class="field__hint">0 — покупатель увидит «посчитает менеджер».</span>
+          <label for="delivery_fee_eur">Доставка в Россию, € за заказ</label>
+          <input class="input" id="delivery_fee_eur" name="delivery_fee_eur" type="number" min="0" step="0.01" value="<%= s.delivery_fee_eur %>">
+          <span class="field__hint">Одна сумма на заказ, от количества товаров не зависит. В рубли — по курсу, без наценки: сейчас <%= fmt.rub(pricing.deliveryFee(quote.rate)) %>. 0 — «посчитает менеджер».</span>
         </div>
       </div>
       <div class="field">

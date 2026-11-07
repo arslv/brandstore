@@ -182,12 +182,12 @@ for (const col of ['tile_bg', 'tile_fg', 'tile_font', 'tile_text']) addColumn('s
 
 // ---------- Настройки по умолчанию ----------
 const DEFAULT_SETTINGS = {
-  markup_pct: '20',
+  markup_pct: '15',
   rate_mode: 'auto', // auto — курс ЦБ, manual — ручной
   rate_eur_manual: '100',
   rate_eur_auto: '',
   rate_updated_at: '',
-  delivery_fee_rub: '0',
+  delivery_fee_eur: '50',
   notify_email: '',
   eu_limit_eur: '300',
   payment_mode: 'demo', // demo — тестовая оплата, link — ссылка от менеджера, yookassa — ЮKassa
@@ -407,6 +407,17 @@ if (Number((db.prepare("SELECT value FROM settings WHERE key = 'schema_version'"
       WHERE slug = ? AND tile_bg = '' AND tile_fg = '' AND tile_font = '' AND tile_text = ''`);
     for (const [slug, [bg, fg, font, text]] of Object.entries(TILE_SEED)) upd.run(bg, fg, font, text, slug);
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '6')").run();
+  });
+  tx();
+}
+
+// ---------- Версия 7: правки владельца 07.11.2026 — наценка 15%, доставка 50 € за заказ ----------
+// Доставка теперь в евро (delivery_fee_eur, добавляется из DEFAULT_SETTINGS), старая настройка в рублях убирается.
+if (Number((db.prepare("SELECT value FROM settings WHERE key = 'schema_version'").get() || {}).value || 1) < 7) {
+  const tx = db.transaction(() => {
+    db.prepare("UPDATE settings SET value = '15' WHERE key = 'markup_pct'").run();
+    db.prepare("DELETE FROM settings WHERE key = 'delivery_fee_rub'").run();
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '7')").run();
   });
   tx();
 }

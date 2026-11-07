@@ -90,7 +90,7 @@ router.get('/product/:id', (req, res, next) => {
   const store = row.store_id ? db.prepare('SELECT * FROM stores WHERE id = ?').get(row.store_id) : null;
   const related = decorate(db.prepare(`${PRODUCT_SELECT} WHERE p.is_active = 1 AND p.id != ? AND (p.category = ? OR p.store_id = ?) ORDER BY RANDOM() LIMIT 5`)
     .all(row.id, row.category, row.store_id));
-  res.render('product', { title: product.title, product, store, related, CATEGORIES });
+  res.render('product', { title: product.title, product, store, related, CATEGORIES, quote: pricing.quote() });
 });
 
 router.get('/stores', (req, res) => {
