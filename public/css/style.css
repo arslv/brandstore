@@ -181,15 +181,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* ---------- Главная ---------- */
 .home-section { margin-top: 40px; }
 .home-section:first-child { margin-top: 28px; }
-.rail { position: relative; }
-.rail__track { display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 4 * 16px) / 5); gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding-bottom: 4px; }
-.rail__track::-webkit-scrollbar { display: none; }
-.rail__track > * { scroll-snap-align: start; }
-.rail__btn { position: absolute; top: calc((100% - 70px) / 2); width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line-strong); background: var(--bg); display: grid; place-items: center; cursor: pointer; z-index: 3; box-shadow: var(--shadow); }
-.rail__btn svg { width: 18px; height: 18px; }
-.rail__btn--prev { left: -20px; }
-.rail__btn--next { right: -20px; }
-.rail__btn[hidden] { display: none; }
 /* Стена брендов: почти во всю ширину экрана, плитки в цветах логотипов, название на всю плитку.
    Высота плитки — от высоты экрана: 2 ряда + растворяющийся 3-й и кнопка «Ещё бренды» видны без прокрутки
    (на телефоне 3 + 1). Свёрнутая сетка (.is-collapsed) показывает 12 плиток (на телефоне 8), кнопка раскрывает
@@ -330,52 +321,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .cat-tile:hover .muted { color: rgba(255, 255, 255, .7); }
 .cat-tile__name { font-weight: 700; font-size: 17px; }
 
-/* ---------- Карточки товаров ---------- */
-.products { display: grid; grid-template-columns: repeat(5, 1fr); gap: 28px 16px; }
-.products--4 { grid-template-columns: repeat(4, 1fr); }
-.card { position: relative; display: flex; flex-direction: column; }
-.card__media { position: relative; aspect-ratio: 3 / 4; border-radius: 12px; overflow: hidden; background: var(--surface-2); }
-.card__media img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s ease; }
-.card:hover .card__media img { transform: scale(1.03); }
-.card__fav { position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .9); display: grid; place-items: center; cursor: pointer; z-index: 2; }
-.card__fav svg { width: 18px; height: 18px; }
-.card__fav[aria-pressed="true"] svg { fill: var(--ink); }
-.card__badge { position: absolute; top: 10px; left: 10px; background: var(--sale); color: #fff; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 6px; z-index: 2; }
-.card__demo { position: absolute; bottom: 10px; left: 10px; background: rgba(0, 0, 0, .78); color: var(--bg); font-size: 11px; padding: 2px 7px; border-radius: 5px; z-index: 2; }
-.card__body { padding-top: 10px; display: flex; flex-direction: column; gap: 2px; }
-.price { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
-.price__now { font-weight: 700; font-size: 17px; }
-.price__now.is-sale { color: var(--sale); }
-.price__old { color: var(--muted); text-decoration: line-through; font-size: 13px; }
-.card__brand { font-weight: 600; font-size: 14px; }
-.card__title { font-size: 14px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.card__link::after { content: ''; position: absolute; inset: 0; z-index: 1; }
-
-/* ---------- Каталог ---------- */
-.catalog { display: grid; grid-template-columns: 240px 1fr; gap: 32px; }
-.filters { position: sticky; top: calc(var(--header-h) + 16px); align-self: start; }
+/* ---------- Раскрывающиеся вопросы и список с иконками («Как это работает») ---------- */
 .filters__group { padding: 16px 0; border-bottom: 1px solid var(--line); }
 .filters__group:first-child { padding-top: 0; }
-.filters__title { font-weight: 700; margin: 0 0 10px; font-size: 14px; }
-.filters a { display: block; padding: 5px 0; color: var(--ink-3); }
-.filters a.is-active { color: var(--ink); font-weight: 700; }
-.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-.toolbar .select { width: auto; min-height: 40px; padding: 6px 12px; }
-
-/* ---------- Карточка товара ---------- */
-.pdp { display: grid; grid-template-columns: 1.1fr 1fr; gap: 48px; }
-.gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.gallery img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 12px; background: var(--surface-2); }
-.gallery img:only-child { grid-column: span 2; max-width: 560px; }
-.pdp__info { position: sticky; top: calc(var(--header-h) + 16px); align-self: start; }
-.pdp__brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; margin-bottom: 8px; }
-.pdp__title { font-size: 26px; font-weight: 500; line-height: 1.25; margin: 0 0 16px; letter-spacing: -0.01em; }
-.pdp .price__now { font-size: 30px; }
-.pdp__eur { color: var(--muted); font-size: 14px; margin-top: 2px; }
-.pdp__block { margin-top: 24px; }
-.pdp__actions { display: flex; gap: 8px; margin-top: 28px; }
-.pdp__actions .btn:first-child { flex: 1; }
-.pdp__error { color: var(--sale); font-size: 14px; margin-top: 10px; min-height: 20px; }
 .info-list { margin: 28px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
 .info-list li { padding: 14px 0; border-bottom: 1px solid var(--line); display: flex; gap: 12px; font-size: 14px; }
 .info-list svg { width: 20px; height: 20px; flex-shrink: 0; margin-top: 1px; }
@@ -530,24 +478,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .toast a { color: var(--bg); text-decoration: underline; font-weight: 600; }
 
 /* ---------- Адаптив ---------- */
-@media (max-width: 1200px) {
-  .products { grid-template-columns: repeat(4, 1fr); }
-  .rail__track { grid-auto-columns: calc((100% - 3 * 16px) / 4); }
-}
 @media (max-width: 1024px) {
-  .products, .products--4 { grid-template-columns: repeat(3, 1fr); }
-  .rail__track { grid-auto-columns: calc((100% - 2 * 16px) / 3); }
-  .rail__btn { display: none; }
   .pay { grid-template-columns: 1fr; }
-  .catalog { grid-template-columns: 1fr; }
-  .filters { position: static; display: grid; gap: 8px; margin-bottom: 8px; }
-  .filters__group { border: 0; padding: 0; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
-  .filters__group::-webkit-scrollbar { display: none; }
-  .filters__title { display: none; }
-  .filters a { flex-shrink: 0; padding: 6px 14px; border: 1px solid var(--line-strong); border-radius: 999px; white-space: nowrap; font-size: 14px; }
-  .filters a.is-active { background: var(--ink); border-color: var(--ink); color: var(--bg); }
-  .pdp, .link-order, .cart, .order-layout, .store-page { grid-template-columns: 1fr; }
-  .pdp__info, .summary { position: static; }
+  .link-order, .cart, .order-layout, .store-page { grid-template-columns: 1fr; }
+  .summary { position: static; }
   .how { grid-template-columns: 1fr 1fr; }
   .footer__grid { grid-template-columns: 1fr 1fr; }
   .account { grid-template-columns: 1fr; gap: 16px; }
@@ -558,8 +492,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .wrap { padding: 0 16px; }
   .topbar__links { display: none; }
   .topbar { font-size: 12px; }
-  .products, .products--4 { grid-template-columns: repeat(2, 1fr); gap: 20px 10px; }
-  .rail__track { grid-auto-columns: 44%; gap: 10px; }
   .brand-wall { --tile-h: clamp(80px, min(calc((100vh - var(--header-h) - 120px) / 4), calc((100vw - 24px) / 2 / 1.5)), 140px); }
   @supports (height: 100svh) {
     .brand-wall { --tile-h: clamp(80px, min(calc((100svh - var(--header-h) - 120px) / 4), calc((100vw - 24px) / 2 / 1.5)), 140px); }

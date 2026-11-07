@@ -72,9 +72,6 @@ function locals(req, res, next) {
   res.locals.userBalance = req.user
     ? db.prepare("SELECT COALESCE(SUM(amount_rub), 0) AS b FROM balance_ops WHERE user_id = ? AND status = 'done'").get(req.user.id).b
     : 0;
-  res.locals.favIds = req.user
-    ? new Set(db.prepare('SELECT product_id FROM favorites WHERE user_id = ?').all(req.user.id).map((r) => r.product_id))
-    : new Set();
   res.locals.shop = {
     email: settings.get('shop_email'),
     phone: settings.get('shop_phone'),

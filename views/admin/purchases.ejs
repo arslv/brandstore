@@ -39,7 +39,10 @@
           <span class="muted"><%= c.qty %> шт.</span>
           <span class="bystore__orders">
             <% c.orders.forEach((o) => { const os = ORDER_STATUSES[o.status] || {}; %>
-              <a class="link" href="/admin/orders/<%= o.id %>"><%= o.number %></a> <span class="status status--<%= os.tone %>"><%= os.short %></span>
+              <span class="bystore__order">
+                <a class="link" href="/admin/orders/<%= o.id %>"><%= o.number %></a> <span class="status status--<%= os.tone %>"><%= os.short %></span>
+                <% if (o.address) { %><span class="bystore__addr"><%- icon('truck') %><span><%= o.address %><% if (o.delivery) { %> <span class="muted">· <%= o.delivery.toLowerCase() %></span><% } %></span></span><% } %>
+              </span>
             <% }) %>
           </span>
         </div>

@@ -6,7 +6,7 @@
 
   <div class="stores-toolbar" data-stores-filter style="flex-direction:column;align-items:stretch">
     <label class="visually-hidden" for="store-q">Найти магазин</label>
-    <input class="input" id="store-q" type="search" placeholder="Найти магазин" autocomplete="off" data-filter-q>
+    <input class="input" id="store-q" type="search" placeholder="Найти магазин" autocomplete="off" value="<%= q %>" data-filter-q>
     <div class="chips" data-filter-cats>
       <button type="button" class="chip" data-cat="" aria-pressed="<%= !activeCat ? 'true' : 'false' %>">Все</button>
       <% Object.entries(CATEGORIES).forEach(([k, label]) => { %>

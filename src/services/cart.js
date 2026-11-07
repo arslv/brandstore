@@ -5,20 +5,15 @@ const SMALL_ORDER = 3; // меньше 3 товаров — предупрежд
 
 function getCart(owner) {
   const rows = db.prepare(`
-    SELECT c.*, s.name AS store_name, s.slug AS store_slug, s.icon_domain, s.logo_path, s.region,
-           p.title AS product_title, p.images AS product_images, p.is_active AS product_active
+    SELECT c.*, s.name AS store_name, s.slug AS store_slug, s.icon_domain, s.logo_path, s.region
     FROM cart_items c
     LEFT JOIN stores s ON s.id = c.store_id
-    LEFT JOIN products p ON p.id = c.product_id
-    WHERE c.owner = ?
+    WHERE c.owner = ? AND c.type = 'link'
     ORDER BY c.id`).all(owner);
   const q = pricing.quote();
   const items = rows.map((r) => {
-    const title = r.type === 'product' ? r.product_title : r.title;
-    let image = r.image_url;
-    if (r.type === 'product' && !image) {
-      try { image = JSON.parse(r.product_images || '[]')[0] || ''; } catch { image = ''; }
-    }
+    const title = r.title;
+    const image = r.image_url;
     const unitRub = pricing.eurToRub(r.price_eur, q.rate, q.markup);
     return { ...r, title, image, unit_rub: unitRub, line_rub: unitRub * r.qty };
   });

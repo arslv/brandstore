@@ -13,7 +13,6 @@ const { getCart } = require('../services/cart');
 const orders = require('../services/orders');
 const payments = require('../services/payments');
 const balance = require('../services/balance');
-const { decorate, PRODUCT_SELECT } = require('./public');
 
 const router = express.Router();
 
@@ -35,32 +34,6 @@ const clampQty = (v) => Math.min(20, Math.max(1, parseInt(v, 10) || 1));
 router.get('/cart', (req, res) => {
   const cart = getCart(req.cartOwner);
   res.render('cart', { title: 'Корзина', cart });
-});
-
-router.post('/cart/add-product', (req, res) => {
-  const product = db.prepare('SELECT * FROM products WHERE id = ? AND is_active = 1').get(req.body.product_id);
-  if (!product) return res.status(404).json({ error: 'Товар не найден' });
-  const sizes = (product.sizes || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const colors = (product.colors || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const size = String(req.body.size || '').trim();
-  const color = String(req.body.color || '').trim();
-  if (sizes.length && !sizes.includes(size)) return res.status(400).json({ error: 'Выберите размер' });
-  if (colors.length && !colors.includes(color)) return res.status(400).json({ error: 'Выберите цвет' });
-  const qty = clampQty(req.body.qty);
-
-  const existing = db.prepare("SELECT id, qty FROM cart_items WHERE owner = ? AND type = 'product' AND product_id = ? AND size = ? AND color = ?")
-    .get(req.cartOwner, product.id, size, color);
-  if (existing) {
-    db.prepare('UPDATE cart_items SET qty = ? WHERE id = ?').run(Math.min(20, existing.qty + qty), existing.id);
-  } else {
-    db.prepare(`INSERT INTO cart_items (owner, type, product_id, store_id, url, size, color, qty, price_eur, region_ok)
-      VALUES (?, 'product', ?, ?, ?, ?, ?, ?, ?, 1)`)
-      .run(req.cartOwner, product.id, product.store_id, product.source_url, size, color, qty, product.price_eur);
-  }
-  const count = db.prepare('SELECT COALESCE(SUM(qty),0) AS n FROM cart_items WHERE owner = ?').get(req.cartOwner).n;
-  if (wantsJson(req)) return res.json({ ok: true, count });
-  req.flash('ok', 'Товар добавлен в корзину.');
-  res.redirect('/cart');
 });
 
 router.post('/cart/add-link', upload.single('photo'), (req, res) => {
@@ -176,21 +149,6 @@ router.post('/checkout', requireAuth, (req, res) => {
   // когда и с какой редакцией оферты и согласия оформлен заказ
   db.prepare("UPDATE orders SET consent_at = datetime('now'), consent_version = ? WHERE id = ?").run(LEGAL_VERSION, order.id);
   res.redirect(`/account/orders/${order.id}?new=1`);
-});
-
-// ---------- Избранное ----------
-router.post('/favorites/:id/toggle', (req, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Войдите, чтобы сохранять товары', login: '/login' });
-  const pid = Number(req.params.id);
-  const exists = db.prepare('SELECT 1 FROM favorites WHERE user_id = ? AND product_id = ?').get(req.user.id, pid);
-  if (exists) db.prepare('DELETE FROM favorites WHERE user_id = ? AND product_id = ?').run(req.user.id, pid);
-  else db.prepare('INSERT OR IGNORE INTO favorites (user_id, product_id) VALUES (?, ?)').run(req.user.id, pid);
-  res.json({ ok: true, active: !exists });
-});
-
-router.get('/favorites', requireAuth, (req, res) => {
-  const products = decorate(db.prepare(`${PRODUCT_SELECT} JOIN favorites f ON f.product_id = p.id WHERE f.user_id = ? AND p.is_active = 1 ORDER BY f.created_at DESC`).all(req.user.id));
-  res.render('favorites', { title: 'Избранное', products });
 });
 
 // ---------- Личный кабинет ----------

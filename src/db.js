@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS stores (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- products и favorites — витрина товаров и избранное. С 07.11.2026 не используются (владелец: «мы так товары не продаём»),
+-- данные удалены миграцией v10; таблицы оставлены, чтобы не ломать старые базы и ссылки cart_items.product_id.
 CREATE TABLE IF NOT EXISTS products (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,
@@ -272,46 +274,6 @@ function insertStore([name, url, region, categories, iconDomain]) {
   });
 }
 
-// ---------- Демо-товары (для витрины; удаляются в админке одной кнопкой) ----------
-const EXTRA_DEMO = [
-  ['Ароматическая свеча в стекле', 'zara-home', 'home', 'unisex', 25.99, null, '200 г', 'Белый чай,Инжир', 'candle', 1, ''],
-  ['Набор столовых приборов, 24 предмета', 'cutipol', 'home', 'unisex', 189, 236, 'Один размер', 'Матовое золото,Сталь', 'cutlery', 0, ''],
-  ['Парфюмерная вода 50 мл', 'byredo', 'beauty', 'unisex', 210, null, '50 мл,100 мл', 'Без цвета', 'perfume', 1, 'perfume'],
-];
-
-function insertDemo([title, slug, cat, gender, price, old, sizes, colors, img, featured, subcategory]) {
-  const store = db.prepare('SELECT id, url FROM stores WHERE slug = ?').get(slug) || {};
-  db.prepare(`INSERT INTO products (title, store_id, category, subcategory, gender, description, price_eur, old_price_eur, sizes, colors, images, source_url, is_featured, is_demo)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`)
-    .run(title, store.id || null, cat, subcategory || (img === 'soap' ? 'body' : ''), gender,
-      'Пример товара для витрины. Замените на настоящий в админке: фото, цена, размеры и ссылка на товар в магазине.',
-      price, old, sizes, colors, JSON.stringify([`/img/demo/${img}.svg`]), store.url || '', featured);
-}
-
-const productCount = db.prepare('SELECT COUNT(*) AS n FROM products').get().n;
-const demoSeeded = db.prepare("SELECT value FROM settings WHERE key = 'demo_seeded'").get();
-if (productCount === 0 && !demoSeeded) {
-  const demo = [
-    ['Тренч из хлопка с поясом', 'massimo-dutti', 'clothes', 'women', 169, null, 'XS,S,M,L,XL', 'Бежевый,Чёрный', 'trench', 1],
-    ['Кожаные лоферы', 'pretty-ballerinas', 'shoes', 'women', 189, 229, '36,37,38,39,40,41', 'Шоколадный,Чёрный', 'loafer', 1],
-    ['Сумка-шопер из гладкой кожи', 'furla', 'accessories', 'women', 248, 310, 'Один размер', 'Карамельный,Чёрный,Молочный', 'tote', 1],
-    ['Кашемировый свитер оверсайз', 'cos', 'clothes', 'men', 135, null, 'S,M,L,XL', 'Серый меланж,Тёмно-синий', 'sweater', 1],
-    ['Кеды из кожи V-10', 'veja', 'shoes', 'unisex', 150, null, '36,37,38,39,40,41,42,43,44', 'Белый,Белый/зелёный', 'sneaker', 1],
-    ['Платье миди с запахом', 'mango', 'clothes', 'women', 59.99, 79.99, 'XS,S,M,L', 'Терракотовый,Чёрный', 'dress', 1],
-    ['Набор мыла ручной работы', 'claus-porto', 'beauty', 'unisex', 45, null, '3 × 150 г', 'Классический', 'soap', 0],
-    ['Солнцезащитные очки в оправе кошачий глаз', 'multiopticas', 'accessories', 'women', 95, null, 'Один размер', 'Черепаховый,Чёрный', 'glasses', 0],
-    ['Детская стёганая куртка', 'zippy', 'kids', 'kids', 39.99, 49.99, '2-3 года,4-5 лет,6-7 лет,8-9 лет', 'Горчичный,Синий', 'kidsjacket', 0],
-    ['Ботинки челси из замши', 'timberland', 'shoes', 'men', 179, null, '40,41,42,43,44,45', 'Коричневый', 'boots', 0],
-    ['Шёлковый платок с принтом', 'lanidor', 'accessories', 'women', 49, null, '90 × 90 см', 'Шоколадный,Голубой', 'scarf', 0],
-    ['Часы с кожаным ремешком', 'swatch', 'jewelry', 'unisex', 120, null, 'Один размер', 'Коричневый ремешок', 'watch', 0],
-    ...EXTRA_DEMO,
-  ];
-  const tx = db.transaction(() => { for (const row of demo) insertDemo(row); });
-  tx();
-  db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('demo_seeded', '1')").run();
-  console.log('[db] Добавлены демо-товары');
-}
-
 // ---------- Обновление данных до версии 2: товары для дома, подкатегории красоты ----------
 if (Number((db.prepare("SELECT value FROM settings WHERE key = 'schema_version'").get() || {}).value || 1) < 2) {
   const tx = db.transaction(() => {
@@ -321,15 +283,8 @@ if (Number((db.prepare("SELECT value FROM settings WHERE key = 'schema_version'"
       if (db.prepare('SELECT 1 FROM stores WHERE slug = ?').get(slug)) upd.run(row[3], beautySubcats[slug] || '', slug);
       else insertStore(row);
     }
-    db.prepare("UPDATE products SET subcategory = 'body' WHERE is_demo = 1 AND images LIKE '%soap.svg%'").run();
     db.prepare("UPDATE stores SET is_popular = 1 WHERE slug IN ('h-and-m', 'zara-home')").run();
     db.prepare("UPDATE stores SET is_popular = 0 WHERE slug = 'swarovski'").run();
-    const hasDemo = db.prepare('SELECT COUNT(*) AS n FROM products WHERE is_demo = 1').get().n > 0;
-    if (hasDemo) {
-      for (const row of EXTRA_DEMO) {
-        if (!db.prepare('SELECT 1 FROM products WHERE title = ?').get(row[0])) insertDemo(row);
-      }
-    }
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '2')").run();
   });
   tx();
@@ -506,6 +461,20 @@ if (Number((db.prepare("SELECT value FROM settings WHERE key = 'schema_version'"
       WHERE slug = ? AND tile_bg = '' AND tile_fg = '' AND tile_font = '' AND tile_text = ''`);
     for (const [slug, [bg, fg, font, text]] of Object.entries(BEAUTY_TILES)) tile.run(bg, fg, font, text, slug);
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '9')").run();
+  });
+  tx();
+}
+
+// ---------- Версия 10: убрана витрина товаров (просьба владельца 07.11.2026) ----------
+// Заказ только по ссылке: товары витрины (в т. ч. демо), избранное и товары витрины в корзинах удаляются.
+// Заказы с такими товарами остаются как есть (в order_items всё записано).
+if (Number((db.prepare("SELECT value FROM settings WHERE key = 'schema_version'").get() || {}).value || 1) < 10) {
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM favorites').run();
+    db.prepare("DELETE FROM cart_items WHERE type = 'product'").run();
+    db.prepare('DELETE FROM products').run();
+    db.prepare("DELETE FROM settings WHERE key = 'demo_seeded'").run();
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('schema_version', '10')").run();
   });
   tx();
 }

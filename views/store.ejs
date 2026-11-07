@@ -17,13 +17,5 @@
     <%- include('partials/paste-form', { quote, pasteStore: store }) %>
   </div>
 
-  <% if (products.length) { %>
-  <section class="section">
-    <div class="section__head"><h2 class="section__title">Товары <%= store.name %></h2></div>
-    <div class="products">
-      <% products.forEach((p) => { %><%- include('partials/product-card', { p }) %><% }) %>
-    </div>
-  </section>
-  <% } %>
 </div>
 <%- include('partials/footer') %>

@@ -10,7 +10,7 @@ const pricing = require('../lib/pricing');
 const mailer = require('../lib/mailer');
 const yookassa = require('../lib/yookassa');
 const { refreshRate } = require('../lib/rates');
-const { ORDER_STATUSES, NEXT_STATUSES, BALANCE_OPS, CATEGORIES, BEAUTY_SUBCATS, GENDERS, DELIVERY_METHODS, PAYMENT_METHODS, PARSE_RESULTS, parseLabel,
+const { ORDER_STATUSES, NEXT_STATUSES, BALANCE_OPS, CATEGORIES, BEAUTY_SUBCATS, DELIVERY_METHODS, PAYMENT_METHODS, PARSE_RESULTS, parseLabel,
   HOME_TAB_KEYS, NO_RANK, parseHomeTabs, formatHomeTabs, TILE_FONTS, cleanHex } = require('../lib/format');
 const payments = require('../services/payments');
 const { parseProduct, browserStatus } = require('../lib/parser');
@@ -22,9 +22,7 @@ const { categoryList } = require('../services/stores');
 const router = express.Router();
 const fmtRub = (n) => `${Math.round(n).toLocaleString('ru-RU')} ₽`;
 
-const imgDir = path.join(config.uploadsDir, 'products');
 const logoDir = path.join(config.uploadsDir, 'logos');
-fs.mkdirSync(imgDir, { recursive: true });
 fs.mkdirSync(logoDir, { recursive: true });
 const makeUpload = (dir) => multer({
   storage: multer.diskStorage({
@@ -34,7 +32,6 @@ const makeUpload = (dir) => multer({
   limits: { fileSize: 8 * 1024 * 1024 },
   fileFilter: (req, file, cb) => cb(null, /^image\/(jpeg|png|webp|gif|svg\+xml)$/.test(file.mimetype)),
 });
-const productUpload = makeUpload(imgDir);
 const logoUpload = makeUpload(logoDir);
 
 router.use((req, res, next) => {
@@ -43,7 +40,6 @@ router.use((req, res, next) => {
     ['/admin/orders', 'Заказы'],
     ['/admin/purchases', 'По магазинам'],
     ['/admin/balance', 'Балансы'],
-    ['/admin/products', 'Товары'],
     ['/admin/stores', 'Магазины'],
     ['/admin/users', 'Покупатели'],
     ['/admin/settings', 'Настройки'],
@@ -142,6 +138,7 @@ router.get('/purchases', (req, res) => {
   const filter = BY_STORE[req.query.s] ? req.query.s : 'paid';
   const statuses = BY_STORE[filter].statuses;
   const rows = db.prepare(`SELECT oi.*, o.number, o.id AS order_id, o.status AS order_status, o.customer_name, o.phone, o.email, o.user_id,
+      o.city AS order_city, o.address AS order_address, o.delivery_method AS order_delivery,
       s.slug AS store_slug, s.name AS store_title, s.icon_domain, s.logo_path, s.url AS store_url, s.tile_bg, s.tile_fg, s.tile_font, s.tile_text
     FROM order_items oi JOIN orders o ON o.id = oi.order_id LEFT JOIN stores s ON s.id = oi.store_id
     WHERE o.status IN (${statuses.map(() => '?').join(',')}) AND oi.item_status != 'unavailable'
@@ -158,7 +155,10 @@ router.get('/purchases', (req, res) => {
     const ck = r.user_id ? 'u' + r.user_id : 'c' + (r.email || r.phone || r.order_id);
     if (!st.customers.has(ck)) st.customers.set(ck, { name: r.customer_name, phone: r.phone, orders: new Map(), items: [], qty: 0 });
     const c = st.customers.get(ck);
-    c.orders.set(r.order_id, { id: r.order_id, number: r.number, status: r.order_status });
+    c.orders.set(r.order_id, {
+      id: r.order_id, number: r.number, status: r.order_status,
+      address: [r.order_city, r.order_address].filter(Boolean).join(', '), delivery: DELIVERY_METHODS[r.order_delivery] || '',
+    });
     c.items.push(r);
     c.qty += r.qty;
     st.qty += r.qty;
@@ -177,84 +177,6 @@ router.get('/purchases', (req, res) => {
   }
   const customers = new Set(rows.map((r) => (r.user_id ? 'u' + r.user_id : 'c' + (r.email || r.phone || r.order_id)))).size;
   res.render('admin/purchases', { title: 'По магазинам', groups, filter, FILTERS: BY_STORE, counts, customers });
-});
-
-// ---------- Товары витрины ----------
-router.get('/products', (req, res) => {
-  const list = db.prepare(`SELECT p.*, s.name AS store_name FROM products p LEFT JOIN stores s ON s.id = p.store_id ORDER BY p.id DESC`).all()
-    .map((p) => ({ ...p, image: (() => { try { return JSON.parse(p.images)[0] || ''; } catch { return ''; } })() }));
-  res.render('admin/products', { title: 'Товары', list, CATEGORIES });
-});
-
-function productForm(res, product, errors = {}) {
-  const stores = db.prepare('SELECT id, name FROM stores ORDER BY name COLLATE NOCASE').all();
-  res.render('admin/product-form', { title: product.id ? 'Редактирование товара' : 'Новый товар', product, stores, errors, CATEGORIES, BEAUTY_SUBCATS, GENDERS });
-}
-
-router.get('/products/new', (req, res) => productForm(res, { images: '[]', gender: 'women', category: 'clothes', is_active: 1 }));
-
-router.get('/products/:id/edit', (req, res, next) => {
-  const p = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
-  if (!p) return next();
-  productForm(res, p);
-});
-
-function readProduct(req, existingImages = []) {
-  const b = req.body;
-  let images = existingImages.filter((img) => !(Array.isArray(b.remove_image) ? b.remove_image : [b.remove_image]).includes(img));
-  const urls = String(b.image_urls || '').split(/\s+/).map((s) => safeUrl(s)).filter(Boolean).map((u) => u.href);
-  images = images.concat(urls, (req.files || []).map((f) => `/uploads/products/${f.filename}`));
-  const price = parseFloat(String(b.price_eur || '').replace(',', '.'));
-  const old = parseFloat(String(b.old_price_eur || '').replace(',', '.'));
-  const data = {
-    title: String(b.title || '').trim().slice(0, 200),
-    store_id: b.store_id ? Number(b.store_id) : null,
-    category: CATEGORIES[b.category] ? b.category : 'clothes',
-    subcategory: b.category === 'beauty' && BEAUTY_SUBCATS[b.subcategory] ? b.subcategory : '',
-    gender: GENDERS[b.gender] ? b.gender : 'women',
-    description: String(b.description || '').trim().slice(0, 5000),
-    price_eur: price,
-    old_price_eur: Number.isFinite(old) && old > price ? old : null,
-    sizes: String(b.sizes || '').split(',').map((s) => s.trim()).filter(Boolean).join(','),
-    colors: String(b.colors || '').split(',').map((s) => s.trim()).filter(Boolean).join(','),
-    images: JSON.stringify(images.slice(0, 10)),
-    source_url: safeUrl(b.source_url) ? safeUrl(b.source_url).href : '',
-    is_active: b.is_active ? 1 : 0,
-    is_featured: b.is_featured ? 1 : 0,
-  };
-  const errors = {};
-  if (!data.title) errors.title = 'Укажите название.';
-  if (!Number.isFinite(price) || price <= 0) errors.price_eur = 'Укажите цену в евро.';
-  return { data, errors };
-}
-
-router.post('/products', productUpload.array('photos', 10), (req, res) => {
-  const { data, errors } = readProduct(req);
-  if (Object.keys(errors).length) return productForm(res, { ...data }, errors);
-  const info = db.prepare(`INSERT INTO products (title, store_id, category, subcategory, gender, description, price_eur, old_price_eur, sizes, colors, images, source_url, is_active, is_featured)
-    VALUES (@title, @store_id, @category, @subcategory, @gender, @description, @price_eur, @old_price_eur, @sizes, @colors, @images, @source_url, @is_active, @is_featured)`).run(data);
-  req.flash('ok', 'Товар добавлен.');
-  res.redirect(`/admin/products/${info.lastInsertRowid}/edit`);
-});
-
-router.post('/products/:id', productUpload.array('photos', 10), (req, res, next) => {
-  const p = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
-  if (!p) return next();
-  let existing = [];
-  try { existing = JSON.parse(p.images || '[]'); } catch { existing = []; }
-  const { data, errors } = readProduct(req, existing);
-  if (Object.keys(errors).length) return productForm(res, { ...data, id: p.id }, errors);
-  db.prepare(`UPDATE products SET title=@title, store_id=@store_id, category=@category, subcategory=@subcategory, gender=@gender, description=@description, price_eur=@price_eur,
-    old_price_eur=@old_price_eur, sizes=@sizes, colors=@colors, images=@images, source_url=@source_url, is_active=@is_active, is_featured=@is_featured, is_demo=0 WHERE id=@id`)
-    .run({ ...data, id: p.id });
-  req.flash('ok', 'Товар сохранён.');
-  res.redirect(`/admin/products/${p.id}/edit`);
-});
-
-router.post('/products/:id/delete', (req, res) => {
-  db.prepare('DELETE FROM products WHERE id = ?').run(req.params.id);
-  req.flash('ok', 'Товар удалён.');
-  res.redirect('/admin/products');
 });
 
 // ---------- Магазины ----------
@@ -420,10 +342,9 @@ router.post('/balance/adjust', (req, res) => {
 
 // ---------- Настройки ----------
 router.get('/settings', (req, res) => {
-  const demoCount = db.prepare('SELECT COUNT(*) AS n FROM products WHERE is_demo = 1').get().n;
   res.render('admin/settings', {
     title: 'Настройки', s: settings.getAll(), quote: pricing.quote(), mail: mailer.mailStatus(),
-    yookassaOn: yookassa.enabled(), demoCount, siteUrl: config.siteUrl,
+    yookassaOn: yookassa.enabled(), siteUrl: config.siteUrl,
     PAYMENT_METHODS, payMode: payments.mode(), enabledMethods: payments.enabledMethods().map((m) => m.key),
   });
 });
@@ -461,12 +382,6 @@ router.post('/settings/test-email', async (req, res) => {
   if (r.sent) req.flash('ok', `Тестовое письмо отправлено на ${to}.`);
   else if (r.outbox) req.flash('info', 'SMTP не настроен: письмо сохранено в папку data/outbox на сервере. Заполните SMTP в файле .env.');
   else req.flash('error', `Письмо не отправлено: ${r.error || 'адрес не указан'}.`);
-  res.redirect('/admin/settings');
-});
-
-router.post('/settings/delete-demo', (req, res) => {
-  const n = db.prepare('DELETE FROM products WHERE is_demo = 1').run().changes;
-  req.flash('ok', `Удалено демо-товаров: ${n}.`);
   res.redirect('/admin/settings');
 });
 

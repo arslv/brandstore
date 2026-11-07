@@ -57,17 +57,6 @@
   }
   $$('[data-store-icon] img').forEach(setupIcon);
 
-  // ---------- Меню на телефоне ----------
-  const burger = $('[data-burger]');
-  if (burger) burger.addEventListener('click', () => {
-    const h = $('#header');
-    const open = h.classList.toggle('is-open');
-    burger.setAttribute('aria-expanded', open ? 'true' : 'false');
-  });
-
-  // ---------- Автоотправка сортировки ----------
-  $$('form[data-autosubmit] select').forEach((s) => s.addEventListener('change', () => s.form.submit()));
-
   // ---------- Калькулятор ----------
   $$('[data-calc]').forEach((box) => {
     const rate = parseFloat(box.dataset.rate), markup = parseFloat(box.dataset.markup);
@@ -89,50 +78,6 @@
     input.addEventListener('input', upd);
     upd();
   });
-
-  // ---------- Избранное ----------
-  document.addEventListener('click', async (e) => {
-    const btn = e.target.closest('[data-fav]');
-    if (!btn) return;
-    e.preventDefault();
-    const r = await post('/favorites/' + btn.dataset.fav + '/toggle');
-    if (r.status === 401) { window.location.href = '/login'; return; }
-    if (r.ok) {
-      $$('[data-fav="' + btn.dataset.fav + '"]').forEach((b) => b.setAttribute('aria-pressed', r.json.active ? 'true' : 'false'));
-      toast(r.json.active ? 'Добавлено в избранное. <a href="/favorites">Открыть</a>' : 'Убрано из избранного');
-    }
-  });
-
-  // ---------- Карточка товара: выбор размера и цвета ----------
-  const addForm = $('form[data-add-product]');
-  if (addForm) {
-    $$('[data-choice]', addForm).forEach((group) => {
-      const name = group.dataset.choice;
-      const hidden = $('input[name="' + name + '"]', addForm);
-      group.addEventListener('click', (e) => {
-        const chip = e.target.closest('.chip');
-        if (!chip) return;
-        $$('.chip', group).forEach((c) => c.setAttribute('aria-pressed', 'false'));
-        chip.setAttribute('aria-pressed', 'true');
-        hidden.value = chip.dataset.value;
-        $('[data-error]', addForm).textContent = '';
-      });
-    });
-    addForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const err = $('[data-error]', addForm);
-      const color = $('input[name="color"]', addForm), size = $('input[name="size"]', addForm);
-      if (color && !color.value) { err.textContent = 'Выберите цвет'; return; }
-      if (size && !size.value) { err.textContent = 'Выберите размер'; return; }
-      const r = await post('/cart/add-product', Object.fromEntries(new FormData(addForm)));
-      if (r.ok) {
-        setCartCount(r.json.count);
-        toast('Товар в корзине. <a href="/cart">Перейти в корзину</a>');
-      } else {
-        err.textContent = r.json.error || 'Не получилось добавить товар. Обновите страницу.';
-      }
-    });
-  }
 
   // ---------- Заказ по ссылке: страница «Заказ по ссылке» и блок «Вставьте ссылку» на главной ----------
   const ICON_WARN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4 2.5 20h19L12 4z"/><path d="M12 10v4M12 17v.5"/></svg>';
@@ -528,21 +473,6 @@
     else window.addEventListener('resize', refresh);
     document.addEventListener('bs:fit', refresh); // превью плитки в админке
   }
-
-  // ---------- Ленты товаров на главной ----------
-  $$('[data-rail]').forEach((rail) => {
-    const track = $('[data-rail-track]', rail), prev = $('[data-rail-prev]', rail), next = $('[data-rail-next]', rail);
-    const upd = () => {
-      prev.hidden = track.scrollLeft <= 4;
-      next.hidden = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
-    };
-    const step = () => track.clientWidth * 0.8;
-    prev.addEventListener('click', () => track.scrollBy({ left: -step(), behavior: 'smooth' }));
-    next.addEventListener('click', () => track.scrollBy({ left: step(), behavior: 'smooth' }));
-    track.addEventListener('scroll', upd, { passive: true });
-    window.addEventListener('resize', upd);
-    upd();
-  });
 
   // ---------- Подтверждение действий ----------
   document.addEventListener('submit', (e) => {

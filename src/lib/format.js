@@ -87,8 +87,6 @@ function legalField(value, placeholder) {
   return value ? escHtml(value) : `<span class="legal-missing">[${escHtml(placeholder)}]</span>`;
 }
 
-const GENDERS = { women: 'Женщинам', men: 'Мужчинам', kids: 'Детям', unisex: 'Унисекс' };
-
 // Вкладки главной страницы. all — главная без выбранной вкладки.
 const HOME_TABS = { women: 'Женщинам', men: 'Мужчинам', kids: 'Детям', home: 'Для дома', beauty: 'Косметика' };
 const HOME_TAB_KEYS = ['all', ...Object.keys(HOME_TABS)];
@@ -155,4 +153,4 @@ const DELIVERY_METHODS = {
   pickup: 'В пункт выдачи',
 };
 
-module.exports = { LEGAL_VERSION, legalField, rub, eur, dateTime, date, plural, ORDER_STATUSES, STATUS_FLOW, NEXT_STATUSES, ITEM_STATUSES, BALANCE_OPS, CATEGORIES, BEAUTY_SUBCATS, GENDERS, HOME_TABS, HOME_TAB_KEYS, NO_RANK, parseHomeTabs, formatHomeTabs, TILE_FONTS, cleanHex, tileStyle, DELIVERY_METHODS, PAYMENT_METHODS, PARSE_RESULTS, parseLabel };
+module.exports = { LEGAL_VERSION, legalField, rub, eur, dateTime, date, plural, ORDER_STATUSES, STATUS_FLOW, NEXT_STATUSES, ITEM_STATUSES, BALANCE_OPS, CATEGORIES, BEAUTY_SUBCATS, HOME_TABS, HOME_TAB_KEYS, NO_RANK, parseHomeTabs, formatHomeTabs, TILE_FONTS, cleanHex, tileStyle, DELIVERY_METHODS, PAYMENT_METHODS, PARSE_RESULTS, parseLabel };

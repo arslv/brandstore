@@ -41,7 +41,7 @@ function createFromCart({ owner, userId, form }) {
         orderId, type: it.type, product_id: it.product_id, store_id: it.store_id, store_name: it.store_name || '',
         url: it.url || '', title: it.title || '', image: it.image || '', size: it.size, color: it.color, qty: it.qty,
         price_eur: it.price_eur, unit_rub: it.unit_rub, line_rub: it.line_rub, comment: it.comment || '', region_ok: it.region_ok,
-        price_auto: it.type === 'product' ? 1 : (it.price_auto || 0),
+        price_auto: it.price_auto || 0,
       });
     }
     balance.charge(userId, orderId, cart.total);

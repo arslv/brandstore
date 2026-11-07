@@ -1,6 +1,6 @@
 <%- include('head') %>
 <%
-  const _g = path === '/' ? (query.g || '') : (path === '/catalog' ? (query.gender || '') : '');
+  const _g = path === '/' ? (query.g || '') : '';
 %>
 <div class="topbar">
   <div class="wrap">
@@ -24,15 +24,14 @@
       </nav>
       <a href="/" class="logo" aria-label="QLIC — на главную">QLIC<i class="logo__dot"></i></a>
       <div class="header__right">
-        <form class="search" action="/catalog" method="get" role="search">
-          <label class="visually-hidden" for="q">Поиск</label>
-          <input id="q" name="q" type="search" placeholder="Бренд или товар" value="<%= query.q || '' %>" autocomplete="off">
+        <form class="search" action="/stores" method="get" role="search">
+          <label class="visually-hidden" for="q">Найти бренд</label>
+          <input id="q" name="q" type="search" placeholder="Найти бренд" value="<%= path === '/stores' ? (query.q || '') : '' %>" autocomplete="off">
           <button type="submit" aria-label="Найти"><%- icon('search') %></button>
         </form>
         <div class="actions">
           <a class="action" href="<%= user ? '/account' : '/login' %>"><%- icon('user') %><span><%= user ? (user.name ? user.name.split(' ')[0] : 'Профиль') : 'Войти' %></span></a>
           <% if (user) { %><a class="action" href="/balance" title="Баланс"><%- icon('wallet') %><span class="nowrap"><%= fmt.rub(userBalance) %></span></a><% } %>
-          <a class="action" href="/favorites"><%- icon('heart') %><span>Избранное</span></a>
           <a class="action" href="/cart"><%- icon('bag') %><span>Корзина</span><span class="badge-count" data-cart-count data-count="<%= cartCount %>"><%= cartCount || '' %></span></a>
         </div>
       </div>

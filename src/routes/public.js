@@ -1,32 +1,13 @@
 const express = require('express');
 const db = require('../db');
 const pricing = require('../lib/pricing');
-const { CATEGORIES, BEAUTY_SUBCATS, GENDERS, HOME_TABS, parseHomeTabs } = require('../lib/format');
+const { CATEGORIES, BEAUTY_SUBCATS, HOME_TABS, parseHomeTabs } = require('../lib/format');
 const rateLimit = require('express-rate-limit');
 const { findStoreForLink, safeUrl } = require('../lib/urls');
 const { parseProduct } = require('../lib/parser');
 const { categoryList } = require('../services/stores');
 
 const router = express.Router();
-
-function decorate(products) {
-  const q = pricing.quote();
-  return products.map((p) => {
-    let images = [];
-    try { images = JSON.parse(p.images || '[]'); } catch { images = []; }
-    const priceRub = pricing.eurToRub(p.price_eur, q.rate, q.markup);
-    const oldRub = p.old_price_eur ? pricing.eurToRub(p.old_price_eur, q.rate, q.markup) : null;
-    const discount = oldRub && oldRub > priceRub ? Math.round((1 - priceRub / oldRub) * 100) : 0;
-    return {
-      ...p, images, image: images[0] || '', price_rub: priceRub, old_rub: discount ? oldRub : null, discount,
-      sizesList: (p.sizes || '').split(',').map((s) => s.trim()).filter(Boolean),
-      colorsList: (p.colors || '').split(',').map((s) => s.trim()).filter(Boolean),
-    };
-  });
-}
-
-const PRODUCT_SELECT = `SELECT p.*, s.name AS store_name, s.slug AS store_slug, s.region AS store_region
-  FROM products p LEFT JOIN stores s ON s.id = p.store_id`;
 
 // Главная: сетка брендов выбранной вкладки (Женщинам / Мужчинам / Детям / Для дома / Косметика) и вставка ссылки
 const HOME_HEADINGS = { all: 'Бренды', women: 'Бренды для женщин', men: 'Бренды для мужчин', kids: 'Бренды для детей', home: 'Товары для дома', beauty: 'Косметика и парфюмерия' };
@@ -45,53 +26,9 @@ router.get('/', (req, res) => {
   });
 });
 
-router.get('/catalog', (req, res) => {
-  const where = ['p.is_active = 1'];
-  const params = {};
-  const { gender, cat, store, q, sort, sub } = req.query;
-  if (gender && GENDERS[gender]) {
-    if (gender === 'kids') where.push("p.gender = 'kids'");
-    else { where.push("(p.gender = @gender OR p.gender = 'unisex')"); params.gender = gender; }
-  }
-  if (cat && CATEGORIES[cat]) { where.push('p.category = @cat'); params.cat = cat; }
-  if (cat === 'beauty' && BEAUTY_SUBCATS[sub]) { where.push('p.subcategory = @sub'); params.sub = sub; }
-  if (req.query.popular === '1') where.push('p.is_featured = 1');
-  if (store) { where.push('s.slug = @store'); params.store = store; }
-  if (q) { where.push('(p.title LIKE @q OR s.name LIKE @q OR p.description LIKE @q)'); params.q = `%${q}%`; }
-  if (req.query.sale === '1') where.push('p.old_price_eur > p.price_eur');
-  const order = {
-    new: 'p.id DESC',
-    price_asc: 'p.price_eur ASC',
-    price_desc: 'p.price_eur DESC',
-    discount: '(COALESCE(p.old_price_eur, p.price_eur) - p.price_eur) / COALESCE(p.old_price_eur, p.price_eur) DESC',
-  }[sort] || 'p.is_featured DESC, p.id DESC';
-
-  const products = decorate(db.prepare(`${PRODUCT_SELECT} WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT 200`).all(params));
-  const storesWithProducts = db.prepare(`SELECT DISTINCT s.slug, s.name FROM products p JOIN stores s ON s.id = p.store_id WHERE p.is_active = 1 ORDER BY s.name`).all();
-  const matchedStores = q
-    ? db.prepare('SELECT * FROM stores WHERE is_active = 1 AND name LIKE ? ORDER BY name LIMIT 12').all(`%${q}%`)
-    : [];
-
-  let heading = 'Каталог';
-  if (q) heading = `Поиск: «${q}»`;
-  else if (req.query.popular === '1') heading = 'Популярное';
-  else if (req.query.sale === '1') heading = 'Скидки';
-  else if (cat === 'beauty' && BEAUTY_SUBCATS[sub]) heading = BEAUTY_SUBCATS[sub];
-  else if (cat && CATEGORIES[cat]) heading = CATEGORIES[cat];
-  else if (gender && GENDERS[gender]) heading = GENDERS[gender];
-  else if (sort === 'new') heading = 'Новинки';
-  res.render('catalog', { title: heading, heading, products, storesWithProducts, matchedStores, CATEGORIES, BEAUTY_SUBCATS, GENDERS });
-});
-
-router.get('/product/:id', (req, res, next) => {
-  const row = db.prepare(`${PRODUCT_SELECT} WHERE p.id = ? AND p.is_active = 1`).get(req.params.id);
-  if (!row) return next();
-  const [product] = decorate([row]);
-  const store = row.store_id ? db.prepare('SELECT * FROM stores WHERE id = ?').get(row.store_id) : null;
-  const related = decorate(db.prepare(`${PRODUCT_SELECT} WHERE p.is_active = 1 AND p.id != ? AND (p.category = ? OR p.store_id = ?) ORDER BY RANDOM() LIMIT 5`)
-    .all(row.id, row.category, row.store_id));
-  res.render('product', { title: product.title, product, store, related, CATEGORIES, quote: pricing.quote() });
-});
+// Витрины товаров больше нет (07.11.2026): старые ссылки поиска и карточек ведут на бренды
+router.get('/catalog', (req, res) => res.redirect(301, req.query.q ? `/stores?q=${encodeURIComponent(String(req.query.q).slice(0, 100))}` : '/stores'));
+router.get('/product/:id', (req, res) => res.redirect(301, '/stores'));
 
 router.get('/stores', (req, res) => {
   const stores = db.prepare('SELECT * FROM stores WHERE is_active = 1 ORDER BY name COLLATE NOCASE').all()
@@ -103,14 +40,13 @@ router.get('/stores', (req, res) => {
     (groups[letter] = groups[letter] || []).push(s);
   }
   const letters = Object.keys(groups).sort();
-  res.render('stores', { title: 'Бренды', stores, groups, letters, CATEGORIES, BEAUTY_SUBCATS, activeCat: req.query.cat || '', activeSub: req.query.sub || '' });
+  res.render('stores', { title: 'Бренды', stores, groups, letters, CATEGORIES, BEAUTY_SUBCATS, activeCat: req.query.cat || '', activeSub: req.query.sub || '', q: String(req.query.q || '').slice(0, 100) });
 });
 
 router.get('/stores/:slug', (req, res, next) => {
   const store = db.prepare('SELECT * FROM stores WHERE slug = ? AND is_active = 1').get(req.params.slug);
   if (!store) return next();
-  const products = decorate(db.prepare(`${PRODUCT_SELECT} WHERE p.is_active = 1 AND p.store_id = ? ORDER BY p.id DESC`).all(store.id));
-  res.render('store', { title: store.name, store, cats: categoryList(store), subcats: (store.subcategories || '').split(',').filter(Boolean), products, CATEGORIES, BEAUTY_SUBCATS, quote: pricing.quote() });
+  res.render('store', { title: store.name, store, cats: categoryList(store), subcats: (store.subcategories || '').split(',').filter(Boolean), CATEGORIES, BEAUTY_SUBCATS, quote: pricing.quote() });
 });
 
 router.get('/order-link', (req, res) => {
@@ -172,5 +108,3 @@ router.get('/api/quote', (req, res) => {
 });
 
 module.exports = router;
-module.exports.decorate = decorate;
-module.exports.PRODUCT_SELECT = PRODUCT_SELECT;

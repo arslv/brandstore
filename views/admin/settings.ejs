@@ -110,13 +110,6 @@
         <p class="small" style="margin-top:-8px">ЮKassa не подключена — работает режим из блока «Пополнение баланса». Для настоящей оплаты укажите ключи ЮKassa в файле .env и выберите режим «ЮKassa».</p>
       <% } %>
     </div>
-    <% if (demoCount) { %>
-    <div class="panel">
-      <p class="panel__title">Демо-товары</p>
-      <p class="small" style="margin-top:-8px">На витрине <%= demoCount %> примеров товаров. Удалите их, когда добавите свои.</p>
-      <form method="post" action="/admin/settings/delete-demo" data-confirm="Удалить все демо-товары?"><input type="hidden" name="_csrf" value="<%= csrfToken %>"><button class="btn btn--sm btn--danger" type="submit">Удалить демо-товары</button></form>
-    </div>
-    <% } %>
   </div>
 </div>
 <%- include('_footer') %>

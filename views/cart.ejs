@@ -19,7 +19,7 @@
                 <% if (it.store_name) { %><%- include('partials/store-icon', { s: { name: it.store_name, slug: it.store_slug, icon_domain: it.icon_domain, logo_path: it.logo_path }, size: 'sm' }) %><%= it.store_name %><% } else { %>Другой магазин<% } %>
               </div>
               <div class="cart-item__title">
-                <% if (it.type === 'product') { %><a href="/product/<%= it.product_id %>"><%= it.title %></a><% } else { %><%= it.title %><% } %>
+                <%= it.title %>
               </div>
               <div class="cart-item__meta">
                 <span>Размер: <b><%= it.size || '—' %></b></span>
